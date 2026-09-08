@@ -1,0 +1,31 @@
+name: Notchly
+options:
+  bundleIdPrefix: com.notchly
+  deploymentTarget:
+    macOS: '14.0'
+packages:
+  MediaRemoteAdapter:
+    path: Vendor/MediaRemoteAdapter
+targets:
+  Notchly:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/Notchly
+      - Notchly/Assets.xcassets
+      - path: Notchly/THIRD_PARTY_NOTICES.txt
+        buildPhase: resources
+    dependencies:
+      - package: MediaRemoteAdapter
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.notchly.app
+        PRODUCT_NAME: Notchly
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_FILE: Notchly/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Notchly/Notchly.entitlements
+        SWIFT_VERSION: '6.0'
+        MARKETING_VERSION: '0.11.0'
+        CURRENT_PROJECT_VERSION: '39'
+        GENERATE_INFOPLIST_FILE: NO

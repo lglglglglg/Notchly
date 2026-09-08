@@ -1,0 +1,431 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0156D4E3963A3172FA6C92D9 /* MusicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8299F506876ED86E487512DA /* MusicService.swift */; };
+		057838A34A3438D0F59541F8 /* CollapsedIslandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EAC800A2F71E9DE85876EE3 /* CollapsedIslandView.swift */; };
+		0E0D85E00F1D071E1C9AC614 /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDC155666AFB3D96E0F2BD1C /* LyricsService.swift */; };
+		1239C15AB1387B98ED51F2B0 /* THIRD_PARTY_NOTICES.txt in Resources */ = {isa = PBXBuildFile; fileRef = 6D6267FB158150CAA88B69D2 /* THIRD_PARTY_NOTICES.txt */; };
+		1753C1FF7ED48D8CE1CB1FB8 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6E87A78F5E1BCBC7C0D14E3 /* CalendarService.swift */; };
+		28D4543CBF28D93608BEBF32 /* PowerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60B25DD0CFB285B137D967F9 /* PowerService.swift */; };
+		30482931BAB54FAF32DB0B35 /* PocketService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F04FA14A04514055C83A14 /* PocketService.swift */; };
+		35328B047629CFF68E528A87 /* IslandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80FC684B2CCC887C938CA84C /* IslandView.swift */; };
+		36066206424A109C3F075319 /* NotchlyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BA3898E29CA484C27720D66 /* NotchlyApp.swift */; };
+		3F074EEBB246E52B8180E879 /* HotKeyRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095C4E6CE2D6CF0541AAA326 /* HotKeyRegistrar.swift */; };
+		4507D92FD86CB8E143CFA354 /* IslandController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8252CC094796A27D6B0143 /* IslandController.swift */; };
+		45F85217DAE05AABB1749C9E /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = D95986F6258761F5278865B6 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4EB6DDFDF6B020D0012079BE /* DesktopLyricsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED28993ABB668C95EA2CED8 /* DesktopLyricsController.swift */; };
+		67EA56B6DCE04500294C7C6F /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36B9A3DAD287C5AA4D7915D /* AppSettings.swift */; };
+		9B342D24D911955DEE44F06E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F7F1219ADBBA1D4AD10792EE /* Assets.xcassets */; };
+		B408C8730B7033062AD89966 /* MusicVisualizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5349B9D8549DCA2E5F2AEE /* MusicVisualizer.swift */; };
+		CBD7A3A17452949AB103051D /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = D95986F6258761F5278865B6 /* MediaRemoteAdapter */; };
+		EEF6F71CEB8F54CD6A6E65DD /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F7EB855B3770E3F5EEEEC8 /* NotificationService.swift */; };
+		EF52925CBF2B276BF3398BCE /* IslandState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A8155B6FB3318F89126EBB /* IslandState.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		143D58143EAA7E199CF7D1D9 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				45F85217DAE05AABB1749C9E /* MediaRemoteAdapter in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		095C4E6CE2D6CF0541AAA326 /* HotKeyRegistrar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyRegistrar.swift; sourceTree = "<group>"; };
+		0EAC800A2F71E9DE85876EE3 /* CollapsedIslandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollapsedIslandView.swift; sourceTree = "<group>"; };
+		36A8155B6FB3318F89126EBB /* IslandState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandState.swift; sourceTree = "<group>"; };
+		3BA3898E29CA484C27720D66 /* NotchlyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchlyApp.swift; sourceTree = "<group>"; };
+		60B25DD0CFB285B137D967F9 /* PowerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerService.swift; sourceTree = "<group>"; };
+		65F7EB855B3770E3F5EEEEC8 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		6D6267FB158150CAA88B69D2 /* THIRD_PARTY_NOTICES.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = THIRD_PARTY_NOTICES.txt; sourceTree = "<group>"; };
+		7A5349B9D8549DCA2E5F2AEE /* MusicVisualizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicVisualizer.swift; sourceTree = "<group>"; };
+		7ED28993ABB668C95EA2CED8 /* DesktopLyricsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopLyricsController.swift; sourceTree = "<group>"; };
+		80FC684B2CCC887C938CA84C /* IslandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandView.swift; sourceTree = "<group>"; };
+		8299F506876ED86E487512DA /* MusicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicService.swift; sourceTree = "<group>"; };
+		84F04FA14A04514055C83A14 /* PocketService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocketService.swift; sourceTree = "<group>"; };
+		8EDC1D095A361659934DD979 /* MediaRemoteAdapter */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MediaRemoteAdapter; path = Vendor/MediaRemoteAdapter; sourceTree = SOURCE_ROOT; };
+		BE8252CC094796A27D6B0143 /* IslandController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandController.swift; sourceTree = "<group>"; };
+		D36B9A3DAD287C5AA4D7915D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		E6E87A78F5E1BCBC7C0D14E3 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
+		E915A7520B238DED6A424AA5 /* Notchly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Notchly.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDC155666AFB3D96E0F2BD1C /* LyricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsService.swift; sourceTree = "<group>"; };
+		F7F1219ADBBA1D4AD10792EE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1B8F5A080901E4D77847913E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CBD7A3A17452949AB103051D /* MediaRemoteAdapter in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		07EAF0BAD0C86C9C6130A39D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E915A7520B238DED6A424AA5 /* Notchly.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		36097368F4002C697C6ADB1F /* Notchly */ = {
+			isa = PBXGroup;
+			children = (
+				F7F1219ADBBA1D4AD10792EE /* Assets.xcassets */,
+				6D6267FB158150CAA88B69D2 /* THIRD_PARTY_NOTICES.txt */,
+			);
+			path = Notchly;
+			sourceTree = "<group>";
+		};
+		84B0D6191C2DCAFFBAE7DA0F /* Notchly */ = {
+			isa = PBXGroup;
+			children = (
+				D36B9A3DAD287C5AA4D7915D /* AppSettings.swift */,
+				E6E87A78F5E1BCBC7C0D14E3 /* CalendarService.swift */,
+				0EAC800A2F71E9DE85876EE3 /* CollapsedIslandView.swift */,
+				7ED28993ABB668C95EA2CED8 /* DesktopLyricsController.swift */,
+				095C4E6CE2D6CF0541AAA326 /* HotKeyRegistrar.swift */,
+				BE8252CC094796A27D6B0143 /* IslandController.swift */,
+				36A8155B6FB3318F89126EBB /* IslandState.swift */,
+				80FC684B2CCC887C938CA84C /* IslandView.swift */,
+				EDC155666AFB3D96E0F2BD1C /* LyricsService.swift */,
+				8299F506876ED86E487512DA /* MusicService.swift */,
+				7A5349B9D8549DCA2E5F2AEE /* MusicVisualizer.swift */,
+				3BA3898E29CA484C27720D66 /* NotchlyApp.swift */,
+				65F7EB855B3770E3F5EEEEC8 /* NotificationService.swift */,
+				84F04FA14A04514055C83A14 /* PocketService.swift */,
+				60B25DD0CFB285B137D967F9 /* PowerService.swift */,
+			);
+			name = Notchly;
+			path = Sources/Notchly;
+			sourceTree = "<group>";
+		};
+		ACD8056ABA8E405ADD4A108F = {
+			isa = PBXGroup;
+			children = (
+				36097368F4002C697C6ADB1F /* Notchly */,
+				84B0D6191C2DCAFFBAE7DA0F /* Notchly */,
+				D280B8DA0F24CED0BEB17C0A /* Packages */,
+				07EAF0BAD0C86C9C6130A39D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D280B8DA0F24CED0BEB17C0A /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				8EDC1D095A361659934DD979 /* MediaRemoteAdapter */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A53E9C6982541B67582A76D3 /* Notchly */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 892B4180899E69B51C98EA73 /* Build configuration list for PBXNativeTarget "Notchly" */;
+			buildPhases = (
+				31EFC7E6E53DC23051E0DC13 /* Sources */,
+				084D694BAF88BF5B6C9372A3 /* Resources */,
+				1B8F5A080901E4D77847913E /* Frameworks */,
+				143D58143EAA7E199CF7D1D9 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Notchly;
+			packageProductDependencies = (
+				D95986F6258761F5278865B6 /* MediaRemoteAdapter */,
+			);
+			productName = Notchly;
+			productReference = E915A7520B238DED6A424AA5 /* Notchly.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		71BAF84AF3AE44405D4DCE6D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = C065D75A2036A21571A15A42 /* Build configuration list for PBXProject "Notchly" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = ACD8056ABA8E405ADD4A108F;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A3A14FD80C7401136A99B0FA /* XCLocalSwiftPackageReference "Vendor/MediaRemoteAdapter" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 07EAF0BAD0C86C9C6130A39D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A53E9C6982541B67582A76D3 /* Notchly */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		084D694BAF88BF5B6C9372A3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B342D24D911955DEE44F06E /* Assets.xcassets in Resources */,
+				1239C15AB1387B98ED51F2B0 /* THIRD_PARTY_NOTICES.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		31EFC7E6E53DC23051E0DC13 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				67EA56B6DCE04500294C7C6F /* AppSettings.swift in Sources */,
+				1753C1FF7ED48D8CE1CB1FB8 /* CalendarService.swift in Sources */,
+				057838A34A3438D0F59541F8 /* CollapsedIslandView.swift in Sources */,
+				4EB6DDFDF6B020D0012079BE /* DesktopLyricsController.swift in Sources */,
+				3F074EEBB246E52B8180E879 /* HotKeyRegistrar.swift in Sources */,
+				4507D92FD86CB8E143CFA354 /* IslandController.swift in Sources */,
+				EF52925CBF2B276BF3398BCE /* IslandState.swift in Sources */,
+				35328B047629CFF68E528A87 /* IslandView.swift in Sources */,
+				0E0D85E00F1D071E1C9AC614 /* LyricsService.swift in Sources */,
+				0156D4E3963A3172FA6C92D9 /* MusicService.swift in Sources */,
+				B408C8730B7033062AD89966 /* MusicVisualizer.swift in Sources */,
+				36066206424A109C3F075319 /* NotchlyApp.swift in Sources */,
+				EEF6F71CEB8F54CD6A6E65DD /* NotificationService.swift in Sources */,
+				30482931BAB54FAF32DB0B35 /* PocketService.swift in Sources */,
+				28D4543CBF28D93608BEBF32 /* PowerService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2F92EC6C6588A5D84AC37F22 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Notchly/Notchly.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 39;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Notchly/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.11.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.notchly.app;
+				PRODUCT_NAME = Notchly;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		55DDEC89948699E46CB7441F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DE0BECA53186115AA026A024 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		E01AC21123D8ED4CF57999A5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Notchly/Notchly.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 39;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Notchly/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.11.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.notchly.app;
+				PRODUCT_NAME = Notchly;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		892B4180899E69B51C98EA73 /* Build configuration list for PBXNativeTarget "Notchly" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E01AC21123D8ED4CF57999A5 /* Debug */,
+				2F92EC6C6588A5D84AC37F22 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C065D75A2036A21571A15A42 /* Build configuration list for PBXProject "Notchly" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				55DDEC89948699E46CB7441F /* Debug */,
+				DE0BECA53186115AA026A024 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A3A14FD80C7401136A99B0FA /* XCLocalSwiftPackageReference "Vendor/MediaRemoteAdapter" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/MediaRemoteAdapter;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D95986F6258761F5278865B6 /* MediaRemoteAdapter */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MediaRemoteAdapter;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 71BAF84AF3AE44405D4DCE6D /* Project object */;
+}
