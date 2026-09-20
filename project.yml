@@ -26,7 +26,7 @@ targets:
         INFOPLIST_FILE: Notchly/Info.plist
         CODE_SIGN_ENTITLEMENTS: Notchly/Notchly.entitlements
         SWIFT_VERSION: '6.0'
-        MARKETING_VERSION: '0.11.4'
-        CURRENT_PROJECT_VERSION: '43'
+        MARKETING_VERSION: '0.11.5'
+        CURRENT_PROJECT_VERSION: '44'
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO

@@ -28,12 +28,7 @@ struct MusicVisualizer: View {
             let count = max(5, Int(geometry.size.width / 5.5))
             HStack(alignment: .center, spacing: 2.5) {
                 ForEach(0..<count, id: \.self) { index in
-                    let phase = time * 4.2 + Double(index) * 0.72
-                    let simulatedWave = (sin(phase) + sin(phase * 0.47 + 1.8) + 2) / 4
-                    // Keep a stable per-bar contour so a genuine beat lifts
-                    // the whole spectrum without turning it into flat bars.
-                    let contour = 0.26 + (sin(Double(index) * 1.91 + 0.7) + 1) * 0.24
-                    let wave = level.map { min(1, 0.08 + $0 * contour) } ?? simulatedWave
+                    let wave = spectrumWave(time: time, index: index, level: level)
                     Capsule(style: .continuous)
                         .fill(tint.gradient)
                         .frame(height: isActive ? 4 + geometry.size.height * 0.74 * wave : 4)
@@ -44,11 +39,27 @@ struct MusicVisualizer: View {
         .animation(.easeOut(duration: 0.22), value: isActive)
     }
 
+    private func spectrumWave(time: TimeInterval, index: Int, level: Double?) -> Double {
+        let phase = time * 4.2 + Double(index) * 0.72
+        let simulatedWave = (sin(phase) + sin(phase * 0.47 + 1.8) + 2) / 4
+        guard let level else { return simulatedWave }
+
+        // Actual system-audio energy controls the overall lift. A subtle moving
+        // texture preserves legibility during quiet passages and when an audio
+        // driver reports zero instead of delivering a useful signal.
+        let contour = 0.26 + (sin(Double(index) * 1.91 + 0.7) + 1) * 0.24
+        let texture = (sin(phase * 1.8) + sin(phase * 0.63 + 1.1) + 2) / 4
+        return min(1, 0.10 + level * (0.48 + contour) + texture * (0.06 + level * 0.10))
+    }
+
     private func waveform(time: TimeInterval, level: Double?) -> some View {
         Canvas { context, size in
             var path = Path()
             let midY = size.height / 2
-            let amplitude = isActive ? size.height * (level.map { 0.08 + $0 * 0.42 } ?? 0.34) : 1
+            let reactiveTexture = (sin(time * 2.7) + 1) / 2
+            let amplitude = isActive
+                ? size.height * (level.map { 0.11 + $0 * 0.43 + reactiveTexture * 0.045 } ?? 0.34)
+                : 1
             let points = max(24, Int(size.width))
             for point in 0...points {
                 let progress = Double(point) / Double(points)
@@ -68,7 +79,8 @@ struct MusicVisualizer: View {
     }
 
     private func pulse(time: TimeInterval, level: Double?) -> some View {
-        let amount = isActive ? (level ?? (sin(time * 3) + 1) / 2) : 0
+        let idleTexture = (sin(time * 3.2) + 1) / 2
+        let amount = isActive ? (level.map { min(1, 0.10 + $0 * 0.86 + idleTexture * 0.04) } ?? idleTexture) : 0
         return ZStack {
             Circle().fill(tint.opacity(0.12 + amount * 0.12)).scaleEffect(0.72 + amount * 0.24)
             Circle().stroke(tint.opacity(0.45), lineWidth: 2).scaleEffect(0.42 + amount * 0.16)
@@ -77,7 +89,8 @@ struct MusicVisualizer: View {
     }
 
     private func halo(time: TimeInterval, level: Double?) -> some View {
-        let amount = isActive ? (level ?? 0.45) : 0
+        let idleTexture = (sin(time * 2.1) + 1) / 2
+        let amount = isActive ? (level.map { min(1, 0.12 + $0 * 0.84 + idleTexture * 0.04) } ?? 0.45) : 0
         return ZStack {
             Circle()
                 .trim(from: 0.08, to: 0.78)

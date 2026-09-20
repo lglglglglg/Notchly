@@ -175,53 +175,83 @@ private final class AudioEnergyMeter: @unchecked Sendable {
     private static func energy(from sampleBuffer: CMSampleBuffer) -> Double {
         guard let format = CMSampleBufferGetFormatDescription(sampleBuffer),
               let basicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee,
-              basicDescription.mFormatID == kAudioFormatLinearPCM,
-              let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+              basicDescription.mFormatID == kAudioFormatLinearPCM else {
             return 0
         }
 
-        var lengthAtOffset = 0
-        var totalLength = 0
-        var dataPointer: UnsafeMutablePointer<Int8>?
-        guard CMBlockBufferGetDataPointer(
-            dataBuffer,
-            atOffset: 0,
-            lengthAtOffsetOut: &lengthAtOffset,
-            totalLengthOut: &totalLength,
-            dataPointerOut: &dataPointer
-        ) == noErr,
-        let dataPointer,
-        totalLength > 0 else { return 0 }
+        // ScreenCaptureKit may hand us interleaved or non-interleaved audio,
+        // and the bytes are not guaranteed to live in one CMBlockBuffer. Ask
+        // CoreMedia for its canonical AudioBufferList so every supported
+        // player/device layout contributes to the level meter.
+        var neededBytes = 0
+        CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            sampleBuffer,
+            bufferListSizeNeededOut: &neededBytes,
+            bufferListOut: nil,
+            bufferListSize: 0,
+            blockBufferAllocator: nil,
+            blockBufferMemoryAllocator: nil,
+            flags: 0,
+            blockBufferOut: nil
+        )
+        guard neededBytes > 0 else { return 0 }
 
-        let meanSquare: Double
+        let rawBufferList = UnsafeMutableRawPointer.allocate(
+            byteCount: neededBytes,
+            alignment: MemoryLayout<AudioBufferList>.alignment
+        )
+        defer { rawBufferList.deallocate() }
+        let bufferList = rawBufferList.assumingMemoryBound(to: AudioBufferList.self)
+        var retainedBlockBuffer: CMBlockBuffer?
+        let status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            sampleBuffer,
+            bufferListSizeNeededOut: nil,
+            bufferListOut: bufferList,
+            bufferListSize: neededBytes,
+            blockBufferAllocator: kCFAllocatorDefault,
+            blockBufferMemoryAllocator: kCFAllocatorDefault,
+            flags: 0,
+            blockBufferOut: &retainedBlockBuffer
+        )
+        guard status == noErr else { return 0 }
+
         let isFloat = basicDescription.mFormatFlags & kAudioFormatFlagIsFloat != 0
-        switch (basicDescription.mBitsPerChannel, isFloat) {
-        case (32, true):
-            let values = dataPointer.withMemoryRebound(to: Float.self, capacity: totalLength / 4) { buffer in
-                UnsafeBufferPointer(start: buffer, count: totalLength / 4)
+        var sumOfSquares = 0.0
+        var sampleCount = 0
+        for audioBuffer in UnsafeMutableAudioBufferListPointer(bufferList) {
+            guard let data = audioBuffer.mData, audioBuffer.mDataByteSize > 0 else { continue }
+            switch (basicDescription.mBitsPerChannel, isFloat) {
+            case (32, true):
+                let values = data.assumingMemoryBound(to: Float.self)
+                let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Float>.size
+                for index in 0..<count {
+                    let value = Double(values[index])
+                    sumOfSquares += value * value
+                }
+                sampleCount += count
+            case (16, false):
+                let values = data.assumingMemoryBound(to: Int16.self)
+                let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Int16>.size
+                for index in 0..<count {
+                    let value = Double(values[index]) / Double(Int16.max)
+                    sumOfSquares += value * value
+                }
+                sampleCount += count
+            case (32, false):
+                let values = data.assumingMemoryBound(to: Int32.self)
+                let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Int32>.size
+                for index in 0..<count {
+                    let value = Double(values[index]) / Double(Int32.max)
+                    sumOfSquares += value * value
+                }
+                sampleCount += count
+            default:
+                return 0
             }
-            meanSquare = values.reduce(0) { $0 + Double($1 * $1) } / Double(max(values.count, 1))
-        case (16, false):
-            let values = dataPointer.withMemoryRebound(to: Int16.self, capacity: totalLength / 2) { buffer in
-                UnsafeBufferPointer(start: buffer, count: totalLength / 2)
-            }
-            meanSquare = values.reduce(0) {
-                let value = Double($1) / Double(Int16.max)
-                return $0 + value * value
-            } / Double(max(values.count, 1))
-        case (32, false):
-            let values = dataPointer.withMemoryRebound(to: Int32.self, capacity: totalLength / 4) { buffer in
-                UnsafeBufferPointer(start: buffer, count: totalLength / 4)
-            }
-            meanSquare = values.reduce(0) {
-                let value = Double($1) / Double(Int32.max)
-                return $0 + value * value
-            } / Double(max(values.count, 1))
-        default:
-            return 0
         }
+        guard sampleCount > 0 else { return 0 }
 
-        let decibels = 20 * log10(max(sqrt(meanSquare), 0.000_01))
+        let decibels = 20 * log10(max(sqrt(sumOfSquares / Double(sampleCount)), 0.000_01))
         return min(max((decibels + 56) / 44, 0), 1)
     }
 }

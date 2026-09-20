@@ -10,6 +10,7 @@ final class IslandState: ObservableObject {
     @Published var remainingSeconds = 25 * 60
     @Published private(set) var musicTitle = "正在等待音乐"
     @Published private(set) var musicArtist = "支持国内主流播放器、Apple Music 与 Spotify"
+    @Published private(set) var musicAlbum = ""
     @Published private(set) var musicSource = "Notchly"
     @Published private(set) var hasMusic = false
     @Published private(set) var isPlaying = false
@@ -216,6 +217,7 @@ final class IslandState: ObservableObject {
         artworkKey = nil
         musicTitle = title
         musicArtist = artist
+        musicAlbum = ""
         musicSource = source
         hasMusic = false
         isPlaying = false
@@ -239,6 +241,7 @@ final class IslandState: ObservableObject {
 
         musicTitle = playback.title
         musicArtist = playback.artist
+        musicAlbum = playback.album
         musicSource = playback.source
         hasMusic = true
         let wasPlaying = isPlaying

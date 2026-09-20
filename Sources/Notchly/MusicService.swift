@@ -5,6 +5,7 @@ import MediaRemoteAdapter
 struct MusicPlayback: Sendable {
     let title: String
     let artist: String
+    let album: String
     let isPlaying: Bool
     let source: String
     let elapsed: TimeInterval
@@ -17,6 +18,7 @@ private struct ScriptedPlayback: Sendable {
     let provider: PlayerProvider
     let title: String
     let artist: String
+    let album: String
     let isPlaying: Bool
     let elapsed: TimeInterval
     let duration: TimeInterval
@@ -108,6 +110,7 @@ final class MusicService {
         return MusicPlayback(
             title: scriptedPlayback.title,
             artist: scriptedPlayback.artist,
+            album: scriptedPlayback.album,
             isPlaying: scriptedPlayback.isPlaying,
             source: scriptedPlayback.provider.displayName,
             elapsed: min(
@@ -185,6 +188,7 @@ final class MusicService {
         systemPlayback = (provider, MusicPlayback(
             title: title,
             artist: payload.artist ?? "未知歌手",
+            album: payload.album?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
             isPlaying: payload.isPlaying ?? ((payload.playbackRate ?? 0) > 0),
             source: provider.displayName,
             elapsed: min(elapsed, duration > 0 ? duration : elapsed),
@@ -290,18 +294,19 @@ private final class MusicScriptReader: @unchecked Sendable {
             let response = try run(provider.snapshotScript(separator: separator))
             guard !response.isEmpty else { continue }
             let fields = response.components(separatedBy: separator)
-            guard fields.count == 6 else { throw MusicServiceError.invalidResponse }
-            let elapsed = max(0, Double(fields[3]) ?? 0)
-            var duration = max(0, Double(fields[4]) ?? 0)
+            guard fields.count == 7 else { throw MusicServiceError.invalidResponse }
+            let elapsed = max(0, Double(fields[4]) ?? 0)
+            var duration = max(0, Double(fields[5]) ?? 0)
             if provider == .spotify { duration /= 1_000 }
             let playback = ScriptedPlayback(
                 provider: provider,
                 title: fields[0],
                 artist: fields[1],
-                isPlaying: fields[2].lowercased() == "true",
+                album: fields[2],
+                isPlaying: fields[3].lowercased() == "true",
                 elapsed: elapsed,
                 duration: duration,
-                artworkURL: URL(string: fields[5])
+                artworkURL: URL(string: fields[6])
             )
             if playback.isPlaying { return playback }
             pausedPlayback = playback
@@ -424,11 +429,12 @@ private enum PlayerProvider: Equatable, Sendable {
             if player state is stopped then return ""
             set trackName to name of current track
             set trackArtist to artist of current track
+            set trackAlbum to album of current track
             set playingNow to (player state is playing) as string
             set trackPosition to (player position) as string
             set trackDuration to (duration of current track) as string
             set artworkLocation to \(artworkExpression)
-            return trackName & "\(separator)" & trackArtist & "\(separator)" & playingNow & "\(separator)" & trackPosition & "\(separator)" & trackDuration & "\(separator)" & artworkLocation
+            return trackName & "\(separator)" & trackArtist & "\(separator)" & trackAlbum & "\(separator)" & playingNow & "\(separator)" & trackPosition & "\(separator)" & trackDuration & "\(separator)" & artworkLocation
         end tell
         """
     }

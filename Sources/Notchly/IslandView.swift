@@ -70,10 +70,12 @@ struct IslandView: View {
                                 .font(.headline)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.82)
-                            Text(state.musicActionMessage ?? "曲目信息已就绪")
-                                .font(.caption2.weight(.medium))
-                                .foregroundColor(state.musicActionMessage == nil ? .secondary : .orange)
-                                .lineLimit(1)
+                            if let message = state.musicActionMessage {
+                                Text(message)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundColor(.orange)
+                                    .lineLimit(1)
+                            }
                         }
                         Spacer(minLength: 8)
                         Menu {
@@ -533,9 +535,6 @@ struct IslandView: View {
 
     private var lyricStatusText: String {
         if !state.hasMusic { return "播放歌曲后将在这里同步歌词" }
-        if settings.audioReactiveVisualizerEnabled, let status = state.audioReactiveStatus {
-            return status
-        }
         if state.isLoadingLyrics { return "正在匹配同步歌词…" }
         if state.isLyricInterlude { return "♪" }
         return "暂未匹配到同步歌词"
@@ -583,18 +582,13 @@ struct IslandView: View {
                 .lineLimit(1)
                 .foregroundStyle(.secondary)
             Spacer(minLength: max(42, notchWidth - 44))
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(state.isPlaying ? .green : .secondary)
-                    .frame(width: 5, height: 5)
-                Text(state.isPlaying ? "正在播放" : "已暂停")
-                if state.musicDuration > 0 {
-                    Text("剩余 \(formatTime(max(0, state.musicDuration - state.elapsedTime(at: .now))))")
-                        .foregroundStyle(.tertiary)
-                }
+            if !state.musicAlbum.isEmpty {
+                Label(state.musicAlbum, systemImage: "opticaldisc")
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 172, alignment: .trailing)
+                    .foregroundStyle(.tertiary)
             }
-            .lineLimit(1)
-            .foregroundStyle(.secondary)
         }
         .font(.caption2.weight(.medium))
         .padding(.horizontal, 64)
