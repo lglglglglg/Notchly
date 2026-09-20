@@ -163,13 +163,16 @@ struct NotchIslandView: View {
                     MusicVisualizer(
                         style: state.settings.musicVisualizerStyle,
                         isActive: state.isPlaying,
-                        audioLevel: state.settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
-                        audioBands: state.settings.audioReactiveVisualizerEnabled ? state.audioReactiveBands : nil,
-                        usesAudioReactiveMode: state.settings.audioReactiveVisualizerEnabled,
+                        audioLevel: state.settings.musicVisualizerStyle.supportsAudioReactiveMode && state.settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
+                        audioBands: state.settings.musicVisualizerStyle.supportsAudioReactiveMode && state.settings.audioReactiveVisualizerEnabled ? state.audioReactiveBands : nil,
+                        usesAudioReactiveMode: state.settings.musicVisualizerStyle.supportsAudioReactiveMode && state.settings.audioReactiveVisualizerEnabled,
                         tint: state.settings.islandAccentTheme.accent,
                         highlight: state.settings.islandAccentTheme.highlight
                     )
-                    .frame(width: 22, height: 14)
+                    .frame(
+                        width: state.settings.musicVisualizerStyle == .pulse || state.settings.musicVisualizerStyle == .cosmicDust ? 32 : 22,
+                        height: state.settings.musicVisualizerStyle == .pulse || state.settings.musicVisualizerStyle == .cosmicDust ? 20 : 14
+                    )
                 } else {
                     Text("悬停")
                         .foregroundStyle(.white.opacity(0.62))

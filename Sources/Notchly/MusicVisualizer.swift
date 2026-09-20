@@ -28,8 +28,8 @@ struct MusicVisualizer: View {
                 switch style {
                 case .spectrum: spectrum(time: time, level: renderedAudioLevel, bands: audioBands)
                 case .waveform: waveform(time: time, level: renderedAudioLevel)
-                case .pulse: pulse(time: time, level: renderedAudioLevel)
-                case .halo: halo(time: time, level: renderedAudioLevel)
+                case .pulse: pulse(time: time)
+                case .cosmicDust: cosmicDust(time: time)
                 }
             }
         }
@@ -101,26 +101,59 @@ struct MusicVisualizer: View {
         .animation(.easeOut(duration: 0.22), value: isActive)
     }
 
-    private func pulse(time: TimeInterval, level: Double?) -> some View {
-        let idleTexture = (sin(time * 3.2) + 1) / 2
-        let amount = isActive ? (level.map { min(1, 0.08 + $0 * 0.90) } ?? idleTexture) : 0
+    private func pulse(time: TimeInterval) -> some View {
+        let beat = isActive ? (sin(time * 3.7) + 1) / 2 : 0
         return ZStack {
-            Circle().fill(tint.opacity(0.12 + amount * 0.12)).scaleEffect(0.72 + amount * 0.24)
-            Circle().stroke(tint.opacity(0.45), lineWidth: 2).scaleEffect(0.42 + amount * 0.16)
-            Circle().fill(tint).frame(width: 6, height: 6)
+            ForEach(0..<3, id: \.self) { index in
+                let phase = (beat + Double(index) * 0.34).truncatingRemainder(dividingBy: 1)
+                Circle()
+                    .stroke(tint.opacity(0.48 - Double(index) * 0.10), lineWidth: 1.5)
+                    .scaleEffect(0.48 + phase * 0.48)
+                    .opacity(0.88 - phase * 0.72)
+            }
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [highlight.opacity(0.82), tint.opacity(0.34), .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 26
+                    )
+                )
+                .scaleEffect(0.60 + beat * 0.12)
+            Circle()
+                .fill(tint)
+                .frame(width: 5, height: 5)
+                .shadow(color: tint.opacity(0.9), radius: 5)
         }
     }
 
-    private func halo(time: TimeInterval, level: Double?) -> some View {
-        let idleTexture = (sin(time * 2.1) + 1) / 2
-        let amount = isActive ? (level.map { min(1, 0.10 + $0 * 0.88) } ?? 0.45) : 0
-        return ZStack {
-            Circle()
-                .trim(from: 0.08, to: 0.78)
-                .stroke(AngularGradient(colors: [.clear, tint, highlight, .clear], center: .center),
-                        style: StrokeStyle(lineWidth: 2 + amount * 2, lineCap: .round))
-                .rotationEffect(.degrees(isActive ? (level.map { time * $0 * 32 } ?? time * 26) : 0))
-            Circle().fill(tint.opacity(0.07 + amount * 0.18)).padding(5)
+    private func cosmicDust(time: TimeInterval) -> some View {
+        GeometryReader { geometry in
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let radius = min(size.width, size.height) / 2
+                for index in 0..<58 {
+                    let seed = Double(index) * 0.618_033_988_75
+                    let orbit = radius * (0.40 + seed.truncatingRemainder(dividingBy: 1) * 0.54)
+                    let speed = isActive ? (0.24 + Double(index % 5) * 0.035) : 0
+                    let angle = seed * .pi * 2 + time * speed
+                    let point = CGPoint(
+                        x: center.x + cos(angle) * orbit,
+                        y: center.y + sin(angle) * orbit * 0.68
+                    )
+                    let dotSize = 1.1 + Double(index % 4) * 0.48
+                    let color = index.isMultiple(of: 5) ? highlight : tint
+                    let rect = CGRect(
+                        x: point.x - dotSize / 2,
+                        y: point.y - dotSize / 2,
+                        width: dotSize,
+                        height: dotSize
+                    )
+                    context.fill(Path(ellipseIn: rect), with: .color(color.opacity(0.28 + Double(index % 5) * 0.11)))
+                }
+            }
+            .drawingGroup()
         }
     }
 }

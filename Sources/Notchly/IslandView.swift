@@ -695,17 +695,18 @@ struct IslandView: View {
 
     private var artwork: some View {
         ZStack {
-            if settings.musicVisualizerStyle == .pulse || settings.musicVisualizerStyle == .halo {
+            if settings.musicVisualizerStyle == .pulse || settings.musicVisualizerStyle == .cosmicDust {
                 MusicVisualizer(
                     style: settings.musicVisualizerStyle,
                     isActive: state.isPlaying,
-                    audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
-                    audioBands: settings.audioReactiveVisualizerEnabled ? state.audioReactiveBands : nil,
-                    usesAudioReactiveMode: settings.audioReactiveVisualizerEnabled,
+                    // Cover effects are intentionally simulated. They remain
+                    // legible at any volume and don't pretend to be a real
+                    // frequency analysis.
+                    usesAudioReactiveMode: false,
                     tint: settings.islandAccentTheme.accent,
                     highlight: settings.islandAccentTheme.highlight
                 )
-                .frame(width: 78, height: 78)
+                .frame(width: 104, height: 104)
             }
 
             Group {
@@ -723,12 +724,12 @@ struct IslandView: View {
                 }
             }
             .frame(
-                width: settings.musicVisualizerStyle == .pulse || settings.musicVisualizerStyle == .halo ? 60 : 68,
-                height: settings.musicVisualizerStyle == .pulse || settings.musicVisualizerStyle == .halo ? 60 : 68
+                width: settings.musicVisualizerStyle == .pulse || settings.musicVisualizerStyle == .cosmicDust ? 66 : 68,
+                height: settings.musicVisualizerStyle == .pulse || settings.musicVisualizerStyle == .cosmicDust ? 66 : 68
             )
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
-        .frame(width: 78, height: 78)
+        .frame(width: 104, height: 92)
         .shadow(color: settings.islandAccentTheme.accent.opacity(state.isPlaying ? 0.28 : 0.12), radius: 20, y: 7)
     }
 
@@ -885,6 +886,30 @@ struct SettingsView: View {
                 }
                 Text("所有提醒都使用 macOS 本地通知，关闭开关后会取消已排定的提醒。")
                     .settingsHint()
+                Label(
+                    state.wellnessReminderSchedule.authorization.statusText,
+                    systemImage: state.wellnessReminderSchedule.authorization == .authorized ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(state.wellnessReminderSchedule.authorization == .authorized ? .green : .orange)
+                .font(.footnote.weight(.medium))
+                Text(state.wellnessReminderSchedule.statusMessage)
+                    .settingsHint()
+                if let next = state.wellnessReminderNextText {
+                    Text(next)
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button("发送测试通知") {
+                        state.sendWellnessTestNotification()
+                    }
+                    .buttonStyle(.bordered)
+                    Button("打开通知设置") {
+                        openSystemNotificationSettings()
+                    }
+                    .buttonStyle(.bordered)
+                    Spacer()
+                }
             }
         }
     }
@@ -913,22 +938,27 @@ struct SettingsView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
-                Text("频谱与波形显示在歌曲信息下方；脉冲与光晕围绕封面显示。")
+                Text("频谱与波形显示在歌曲信息下方；脉冲与宇宙尘埃围绕封面显示。")
                     .settingsHint()
                 Divider()
-                SettingLine(
-                    title: "根据真实节拍律动（实验性）",
-                    detail: "仅在播放时本机分析系统音频能量；首次开启会请求“屏幕与系统音频录制”权限，不保存或上传声音。"
-                ) {
-                    Toggle("", isOn: $settings.audioReactiveVisualizerEnabled)
-                        .labelsHidden()
-                }
-                if settings.audioReactiveVisualizerEnabled {
-                    Label(
-                        state.audioReactiveStatus ?? "等待系统音频采样…",
-                        systemImage: state.audioReactiveStatus == "正在根据系统音频律动" ? "waveform" : "waveform.badge.exclamationmark"
-                    )
-                    .settingsHint()
+                if settings.musicVisualizerStyle.supportsAudioReactiveMode {
+                    SettingLine(
+                        title: "根据真实节拍律动（实验性）",
+                        detail: "仅在播放时本机分析系统音频能量；首次开启会请求“屏幕与系统音频录制”权限，不保存或上传声音。"
+                    ) {
+                        Toggle("", isOn: $settings.audioReactiveVisualizerEnabled)
+                            .labelsHidden()
+                    }
+                    if settings.audioReactiveVisualizerEnabled {
+                        Label(
+                            state.audioReactiveStatus ?? "等待系统音频采样…",
+                            systemImage: state.audioReactiveStatus == "正在根据系统音频律动" ? "waveform" : "waveform.badge.exclamationmark"
+                        )
+                        .settingsHint()
+                    }
+                } else {
+                    Text("脉冲与宇宙尘埃使用独立模拟动画，不依赖真实节拍，避免音频采样不稳定时显得突兀。")
+                        .settingsHint()
                 }
             }
 
@@ -989,6 +1019,11 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
         }
+    }
+
+    private func openSystemNotificationSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private var desktopLyricsSettings: some View {

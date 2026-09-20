@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 import SwiftUI
+import UserNotifications
 
 extension Notification.Name {
     static let notchlyShowSettingsRequested = Notification.Name("Notchly.showSettingsRequested")
@@ -36,6 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         islandController = IslandController(state: state)
         desktopLyricsController = DesktopLyricsController(state: state)
         configureMenuBar()
+        // Local reminders must remain visible even while the accessory app is
+        // frontmost; otherwise a correct schedule can look like it never ran.
+        UNUserNotificationCenter.current().delegate = self
         installKeyboardShortcut()
         NotificationCenter.default.addObserver(
             self,
@@ -208,4 +212,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quit() { NSApp.terminate(nil) }
+}
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
+    }
 }

@@ -5,7 +5,7 @@ enum MusicVisualizerStyle: String, CaseIterable, Identifiable {
     case spectrum
     case waveform
     case pulse
-    case halo
+    case cosmicDust
 
     var id: String { rawValue }
 
@@ -14,8 +14,15 @@ enum MusicVisualizerStyle: String, CaseIterable, Identifiable {
         case .spectrum: "频谱"
         case .waveform: "波形"
         case .pulse: "脉冲"
-        case .halo: "唱片光晕"
+        case .cosmicDust: "宇宙尘埃"
         }
+    }
+
+    /// Real system-audio analysis is useful only where it creates visible
+    /// frequency or waveform detail. Decorative cover effects stay simulated
+    /// so a quiet/failed capture can never make them look broken.
+    var supportsAudioReactiveMode: Bool {
+        self == .spectrum || self == .waveform
     }
 }
 
@@ -108,7 +115,10 @@ final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(autoCollapseDelay, forKey: "interaction.collapseDelay") }
     }
     @Published var musicVisualizerStyle: MusicVisualizerStyle {
-        didSet { UserDefaults.standard.set(musicVisualizerStyle.rawValue, forKey: "music.visualizer") }
+        didSet {
+            UserDefaults.standard.set(musicVisualizerStyle.rawValue, forKey: "music.visualizer")
+            NotificationCenter.default.post(name: Self.audioReactiveVisualizerDidChange, object: self)
+        }
     }
     @Published var islandAccentTheme: IslandAccentTheme {
         didSet { UserDefaults.standard.set(islandAccentTheme.rawValue, forKey: "island.accentTheme") }
@@ -153,9 +163,12 @@ final class AppSettings: ObservableObject {
         showsWelcome = !defaults.bool(forKey: Self.welcomeSeenKey)
         expandsOnHover = defaults.object(forKey: "interaction.hoverPreview") as? Bool ?? true
         autoCollapseDelay = min(max(defaults.object(forKey: "interaction.collapseDelay") as? Double ?? 0.65, 0.3), 2.0)
-        musicVisualizerStyle = MusicVisualizerStyle(
-            rawValue: defaults.string(forKey: "music.visualizer") ?? ""
-        ) ?? .spectrum
+        let savedVisualizer = defaults.string(forKey: "music.visualizer") ?? ""
+        // Keep existing users' former "唱片光晕" choice meaningful while
+        // replacing the effect with its less generic successor.
+        musicVisualizerStyle = savedVisualizer == "halo"
+            ? .cosmicDust
+            : MusicVisualizerStyle(rawValue: savedVisualizer) ?? .spectrum
         islandAccentTheme = IslandAccentTheme(
             rawValue: defaults.string(forKey: "island.accentTheme") ?? ""
         ) ?? .violet

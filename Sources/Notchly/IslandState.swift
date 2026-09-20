@@ -38,6 +38,7 @@ final class IslandState: ObservableObject {
     @Published private(set) var calendarTitle = "连接日历后显示下一项"
     @Published private(set) var calendarSubtitle = "你的日程只会保留在这台 Mac 上"
     @Published private(set) var isLoadingCalendar = false
+    @Published private(set) var wellnessReminderSchedule = WellnessReminderSchedule.idle
     @Published private(set) var isIslandPopoverPresented = false
     var onMusicRefreshPolicyChanged: (@MainActor () -> Void)?
 
@@ -652,17 +653,38 @@ final class IslandState: ObservableObject {
 
     func syncWellnessReminders() {
         Task {
-            await notificationService.updateWellnessReminders(
+            let schedule = await notificationService.updateWellnessReminders(
                 hydrationEnabled: settings.hydrationRemindersEnabled,
                 hydrationMinutes: settings.hydrationIntervalMinutes,
                 standEnabled: settings.standRemindersEnabled,
                 standMinutes: settings.standIntervalMinutes
             )
+            wellnessReminderSchedule = schedule
         }
     }
 
+    func sendWellnessTestNotification() {
+        Task {
+            wellnessReminderSchedule = await notificationService.scheduleWellnessTestNotification()
+        }
+    }
+
+    var wellnessReminderNextText: String? {
+        var entries: [String] = []
+        if let date = wellnessReminderSchedule.hydrationNext {
+            entries.append("喝水：\(date.notchlyReminderTime)")
+        }
+        if let date = wellnessReminderSchedule.standNext {
+            entries.append("久坐：\(date.notchlyReminderTime)")
+        }
+        return entries.isEmpty ? nil : "下次提醒 · " + entries.joined(separator: "  ")
+    }
+
     func syncAudioReactiveVisualizer() {
-        guard settings.audioReactiveVisualizerEnabled, hasMusic, isPlaying else {
+        guard settings.musicVisualizerStyle.supportsAudioReactiveMode,
+              settings.audioReactiveVisualizerEnabled,
+              hasMusic,
+              isPlaying else {
             audioAnalyzer.stop()
             return
         }
@@ -699,6 +721,13 @@ private struct ArtworkCacheEntry {
 
 private extension Date {
     var notchlyRelativeDate: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = Calendar.current.isDateInToday(self) ? "今天 HH:mm" : "M月d日 HH:mm"
+        return formatter.string(from: self)
+    }
+
+    var notchlyReminderTime: String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = Calendar.current.isDateInToday(self) ? "今天 HH:mm" : "M月d日 HH:mm"
