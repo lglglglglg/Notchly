@@ -187,7 +187,7 @@ struct IslandView: View {
                     if showsCalendarDetails { state.connectCalendar() }
                 } label: {
                     Label("日历", systemImage: "calendar")
-                        .frame(width: 54)
+                        .frame(width: 86)
                         .frame(minHeight: 42)
                 }
                 .buttonStyle(.plain)
@@ -269,13 +269,13 @@ struct IslandView: View {
     private var footerSystemControlsWidth: CGFloat {
         var width: CGFloat = 132 // focus timer
         if settings.showsPower { width += 73 } // battery plus divider
-        if settings.showsCalendar { width += 55 } // calendar plus divider
+        if settings.showsCalendar { width += 87 } // calendar plus divider
         return width
     }
 
     private var pocketDropTitle: String {
-        if isPocketDropTarget { return "松手暂存" }
-        return pocket.items.isEmpty ? "文件暂存" : "\(pocket.items.count) 项暂存"
+        if isPocketDropTarget { return "松手" }
+        return pocket.items.isEmpty ? "暂存" : "\(pocket.items.count) 项"
     }
 
     private func receivePocketDrop(_ providers: [NSItemProvider]) -> Bool {
