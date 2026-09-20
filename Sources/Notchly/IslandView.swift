@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct IslandView: View {
     @ObservedObject var state: IslandState
@@ -8,6 +9,7 @@ struct IslandView: View {
     @State private var showsCalendarDetails = false
     @State private var showsPocket = false
     @State private var confirmsPocketClear = false
+    @State private var isPocketDropTarget = false
     @State private var helloWriteProgress: CGFloat = 0
     @State private var helloControlsVisible = false
     @State private var idleHelloWriteProgress: CGFloat = 0
@@ -151,36 +153,116 @@ struct IslandView: View {
             }
             .padding(.horizontal, 56)
 
+            lyricsFooter
+                .padding(.horizontal, 56)
+                .padding(.top, 10)
+
             HStack(spacing: 8) {
-                lyricsFooter
-                Spacer(minLength: 2)
-                if settings.showsPower {
-                    batteryPill
+                if settings.showsPower || settings.showsCalendar {
+                    footerSystemControls
+                        .frame(maxWidth: .infinity)
                 }
-                if settings.showsCalendar {
-                    Button {
-                        showsCalendarDetails.toggle()
-                        if showsCalendarDetails { state.connectCalendar() }
-                    } label: {
-                        Image(systemName: "calendar")
-                            .font(.caption.weight(.semibold))
-                            .frame(width: 27, height: 24)
-                            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .help("查看下一项日程")
-                    .popover(isPresented: $showsCalendarDetails, arrowEdge: .bottom) {
-                        calendarPopover
-                    }
-                }
-                pocketButton
+                pocketDropRow
+                    .frame(maxWidth: .infinity)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
             .padding(.horizontal, 56)
-            .padding(.top, 10)
+            .padding(.top, 8)
             .padding(.bottom, 8)
         }
+    }
+
+    private var footerSystemControls: some View {
+        HStack(spacing: 0) {
+            if settings.showsPower {
+                Button { state.refreshPower() } label: {
+                    Label(batteryFooterTitle, systemImage: batterySymbol)
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(batteryTint)
+                .help([state.batteryStatus, state.batteryTimeRemaining].filter { !$0.isEmpty }.joined(separator: " · "))
+            }
+
+            if settings.showsPower && settings.showsCalendar {
+                Divider()
+                    .overlay(.white.opacity(0.10))
+                    .padding(.vertical, 9)
+            }
+
+            if settings.showsCalendar {
+                Button {
+                    showsCalendarDetails.toggle()
+                    if showsCalendarDetails { state.connectCalendar() }
+                } label: {
+                    Label("日历", systemImage: "calendar")
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("查看下一项日程")
+                .popover(isPresented: $showsCalendarDetails, arrowEdge: .bottom) {
+                    calendarPopover
+                }
+            }
+        }
+        .font(.caption.weight(.semibold))
+        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(.white.opacity(0.055), lineWidth: 0.5)
+        }
+    }
+
+    private var pocketDropRow: some View {
+        Button { showsPocket.toggle() } label: {
+            HStack(spacing: 7) {
+                Image(systemName: isPocketDropTarget ? "tray.and.arrow.down.fill" : (pocket.items.isEmpty ? "tray" : "tray.full"))
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(isPocketDropTarget ? .white : .purple)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(isPocketDropTarget ? "松手暂存文件" : "文件暂存")
+                        .font(.caption.weight(.semibold))
+                    Text(pocket.items.isEmpty ? "拖放文件到这里" : "\(pocket.items.count) 项 · \(pocket.storageSummary)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .background(isPocketDropTarget ? .purple.opacity(0.48) : .white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(isPocketDropTarget ? .purple.opacity(0.9) : .white.opacity(0.055), lineWidth: isPocketDropTarget ? 1 : 0.5)
+        }
+        .onDrop(of: [UTType.fileURL], isTargeted: $isPocketDropTarget, perform: receivePocketDrop)
+        .help(pocket.items.isEmpty ? "将文件拖放到此处暂存" : "临时文件托盘 · \(pocket.items.count) 项")
+        .popover(isPresented: $showsPocket, arrowEdge: .bottom) {
+            pocketPopover
+        }
+    }
+
+    private func receivePocketDrop(_ providers: [NSItemProvider]) -> Bool {
+        var accepted = false
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            accepted = true
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let url: URL?
+                if let value = item as? URL { url = value }
+                else if let value = item as? NSURL { url = value as URL }
+                else if let data = item as? Data { url = URL(dataRepresentation: data, relativeTo: nil) }
+                else { url = nil }
+                guard let url else { return }
+                Task { @MainActor in pocket.importURLs([url]) }
+            }
+        }
+        return accepted
     }
 
     private var firstLaunchWelcome: some View {
@@ -332,20 +414,6 @@ struct IslandView: View {
         .help("快捷操作")
     }
 
-    private var pocketButton: some View {
-        Button { showsPocket.toggle() } label: {
-            Image(systemName: pocket.items.isEmpty ? "tray" : "tray.full")
-                .font(.caption.weight(.semibold))
-                .frame(width: 27, height: 24)
-                .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .help(pocket.items.isEmpty ? "临时文件托盘" : "临时文件托盘 · \(pocket.items.count) 项")
-        .popover(isPresented: $showsPocket, arrowEdge: .bottom) {
-            pocketPopover
-        }
-    }
-
     private var pocketPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -405,18 +473,6 @@ struct IslandView: View {
         } message: {
             Text("暂存副本会被删除，原始文件不会受到影响。")
         }
-    }
-
-    private var batteryPill: some View {
-        Label(batteryFooterTitle, systemImage: batterySymbol)
-            .font(.caption2.monospacedDigit().weight(.semibold))
-            .foregroundStyle(batteryTint)
-            .padding(.horizontal, 7)
-            .frame(height: 24)
-            .background(.white.opacity(0.07), in: Capsule())
-            .fixedSize(horizontal: true, vertical: false)
-            .help([state.batteryStatus, state.batteryTimeRemaining].filter { !$0.isEmpty }.joined(separator: "·"))
-            .onTapGesture { state.refreshPower() }
     }
 
     private var batteryTitle: String {

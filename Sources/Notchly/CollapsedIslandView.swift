@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 @MainActor
 final class NotchPresentation: ObservableObject {
@@ -40,15 +39,12 @@ final class NotchPresentation: ObservableObject {
 struct NotchIslandView: View {
     @ObservedObject var state: IslandState
     @ObservedObject var presentation: NotchPresentation
-    @ObservedObject private var pocket: PocketService
-    @State private var isPocketDropTarget = false
     let showFull: () -> Void
     let collapse: () -> Void
 
     init(state: IslandState, presentation: NotchPresentation, showFull: @escaping () -> Void, collapse: @escaping () -> Void) {
         self.state = state
         self.presentation = presentation
-        self.pocket = state.pocket
         self.showFull = showFull
         self.collapse = collapse
     }
@@ -110,40 +106,10 @@ struct NotchIslandView: View {
                     NotificationCenter.default.post(name: .notchlyQuitRequested, object: nil)
                 }
             }
-            .overlay {
-                if isPocketDropTarget {
-                    ZStack {
-                        surface.fill(.purple.opacity(0.30))
-                        Label("松手暂存文件", systemImage: "tray.and.arrow.down.fill")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                    }
-                    .frame(width: presentation.surfaceSize.width, height: presentation.surfaceSize.height)
-                    .allowsHitTesting(false)
-                }
-            }
-            .onDrop(of: [UTType.fileURL], isTargeted: $isPocketDropTarget, perform: receivePocketDrop)
             .animation(.spring(response: 0.30, dampingFraction: 0.90), value: presentation.phase)
         }
         .frame(width: presentation.panelSize.width, height: presentation.panelSize.height, alignment: .top)
         .preferredColorScheme(.dark)
-    }
-
-    private func receivePocketDrop(_ providers: [NSItemProvider]) -> Bool {
-        var accepted = false
-        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-            accepted = true
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                let url: URL?
-                if let value = item as? URL { url = value }
-                else if let value = item as? NSURL { url = value as URL }
-                else if let data = item as? Data { url = URL(dataRepresentation: data, relativeTo: nil) }
-                else { url = nil }
-                guard let url else { return }
-                Task { @MainActor in pocket.importURLs([url]) }
-            }
-        }
-        return accepted
     }
 
     private var compactStatus: some View {
