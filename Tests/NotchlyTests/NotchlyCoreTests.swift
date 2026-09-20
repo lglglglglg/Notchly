@@ -131,6 +131,8 @@ final class NotchlyCoreTests: XCTestCase {
             32,
             accuracy: 0.001
         )
+        XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(hasMusic: false, isPomodoroRunning: false), 48)
+        XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(hasMusic: true, isPomodoroRunning: true), 72)
     }
 
     @MainActor

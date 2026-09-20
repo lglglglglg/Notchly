@@ -216,7 +216,10 @@ final class IslandController {
     }
 
     private func surfaceFrame(on screen: NSScreen) -> NSRect {
-        let size = presentation.surfaceSize
+        let size = presentation.surfaceSize(
+            hasMusic: state.hasMusic,
+            isPomodoroRunning: state.isPomodoroRunning
+        )
         return NSRect(
             x: presentation.centerX - size.width / 2,
             y: screen.frame.maxY - size.height,

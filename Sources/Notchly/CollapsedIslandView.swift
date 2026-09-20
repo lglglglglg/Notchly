@@ -15,8 +15,12 @@ final class NotchPresentation: ObservableObject {
 
     let panelSize = NSSize(width: 580, height: 272)
 
-    var compactSize: NSSize {
-        NSSize(width: max(220, notchWidth + 80), height: notchHeight + 2)
+    func compactSize(hasMusic: Bool, isPomodoroRunning: Bool) -> NSSize {
+        let wingWidth = NotchLayoutPolicy.compactWingWidth(
+            hasMusic: hasMusic,
+            isPomodoroRunning: isPomodoroRunning
+        )
+        return NSSize(width: max(220, notchWidth + wingWidth * 2), height: notchHeight + 2)
     }
 
     // The compact island stays inside the menu-bar band; the expanded player
@@ -28,9 +32,9 @@ final class NotchPresentation: ObservableObject {
         NotchLayoutPolicy.expandedContentTopInset(notchHeight: notchHeight)
     }
 
-    var surfaceSize: NSSize {
+    func surfaceSize(hasMusic: Bool, isPomodoroRunning: Bool) -> NSSize {
         switch phase {
-        case .compact: compactSize
+        case .compact: compactSize(hasMusic: hasMusic, isPomodoroRunning: isPomodoroRunning)
         case .expanded: expandedSize
         }
     }
@@ -53,6 +57,10 @@ struct NotchIslandView: View {
         let surface = NotchSurface(
             notchHeight: presentation.notchHeight,
             expansionProgress: presentation.phase.rawValue
+        )
+        let surfaceSize = presentation.surfaceSize(
+            hasMusic: state.hasMusic,
+            isPomodoroRunning: state.isPomodoroRunning
         )
 
         ZStack(alignment: .top) {
@@ -85,7 +93,7 @@ struct NotchIslandView: View {
                         ))
                 }
             }
-            .frame(width: presentation.surfaceSize.width, height: presentation.surfaceSize.height)
+            .frame(width: surfaceSize.width, height: surfaceSize.height)
             .clipShape(surface)
             .contentShape(surface)
             .onTapGesture {
@@ -113,15 +121,21 @@ struct NotchIslandView: View {
     }
 
     private var compactStatus: some View {
-        let size = presentation.compactSize
-        let wingWidth = max(48, (size.width - presentation.notchWidth) / 2)
+        let size = presentation.compactSize(
+            hasMusic: state.hasMusic,
+            isPomodoroRunning: state.isPomodoroRunning
+        )
+        let wingWidth = NotchLayoutPolicy.compactWingWidth(
+            hasMusic: state.hasMusic,
+            isPomodoroRunning: state.isPomodoroRunning
+        )
 
         return HStack(spacing: 0) {
             Group {
-                if state.isPomodoroRunning {
-                    Image(systemName: "timer").foregroundStyle(.orange)
-                } else if state.hasMusic {
+                if state.hasMusic {
                     compactArtwork
+                } else if state.isPomodoroRunning {
+                    Image(systemName: "timer").foregroundStyle(.orange)
                 } else {
                     Image(systemName: "music.note")
                         .font(.caption.weight(.bold))
@@ -136,7 +150,15 @@ struct NotchIslandView: View {
 
             Group {
                 if state.isPomodoroRunning {
-                    Text(state.timerText).monospacedDigit()
+                    if state.hasMusic {
+                        HStack(spacing: 4) {
+                            Image(systemName: "timer")
+                            Text(state.timerText).monospacedDigit()
+                        }
+                        .foregroundStyle(.orange)
+                    } else {
+                        Text(state.timerText).monospacedDigit()
+                    }
                 } else if state.hasMusic {
                     MusicVisualizer(
                         style: state.settings.musicVisualizerStyle,
@@ -246,6 +268,10 @@ private struct NotchSurface: Shape {
 /// camera housing. The old layout used the large curve radius as a content
 /// inset, which left an unnecessarily tall empty header above the player.
 enum NotchLayoutPolicy {
+    static func compactWingWidth(hasMusic: Bool, isPomodoroRunning: Bool) -> CGFloat {
+        hasMusic && isPomodoroRunning ? 72 : 48
+    }
+
     static func expandedContentTopInset(notchHeight: CGFloat) -> CGFloat {
         max(36, notchHeight + 4)
     }
