@@ -174,13 +174,16 @@ final class PocketService: ObservableObject {
     }
 
     private func reload() {
-        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileAllocatedSizeKey, .totalFileAllocatedSizeKey]
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
         let urls = (try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])) ?? []
         items = urls.map { url in
             let values = try? url.resourceValues(forKeys: keys)
             return PocketItem(
                 url: url,
-                size: Int64(values?.totalFileAllocatedSize ?? values?.fileAllocatedSize ?? 0),
+                // Keep the post-import value consistent with preflight checks:
+                // a copied folder consumes the sum of its descendants, not just
+                // the allocation for the folder entry itself.
+                size: allocatedSize(of: url),
                 modifiedAt: values?.contentModificationDate ?? .distantPast
             )
         }
@@ -203,8 +206,14 @@ final class PocketService: ObservableObject {
 
 enum PocketStoragePolicy {
     static func canStore(incomingBytes: Int64, usedBytes: Int64, capacityMB: Int) -> Bool {
-        incomingBytes >= 0 && usedBytes >= 0
-            && usedBytes + incomingBytes <= Int64(capacityMB) * 1_024 * 1_024
+        guard incomingBytes >= 0, usedBytes >= 0, capacityMB >= 0 else { return false }
+        let megabyte: Int64 = 1_024 * 1_024
+        // Compare in MB plus a bounded remainder rather than multiplying the
+        // configured capacity or adding two potentially large byte counts.
+        let wholeMegabytes = usedBytes / megabyte + incomingBytes / megabyte
+        let remainder = usedBytes % megabyte + incomingBytes % megabyte
+        let requiredMegabytes = wholeMegabytes + remainder / megabyte + (remainder % megabyte == 0 ? 0 : 1)
+        return requiredMegabytes <= Int64(capacityMB)
     }
 
     static func expirationCutoff(retentionDays: Int, now: Date = .now) -> Date {

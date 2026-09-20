@@ -16,6 +16,8 @@ final class NotchlyCoreTests: XCTestCase {
     func testPocketStoragePolicyAppliesCapacityAndDuplicateRules() {
         XCTAssertTrue(PocketStoragePolicy.canStore(incomingBytes: 128, usedBytes: 512, capacityMB: 1))
         XCTAssertFalse(PocketStoragePolicy.canStore(incomingBytes: 600_000, usedBytes: 512_000, capacityMB: 1))
+        XCTAssertFalse(PocketStoragePolicy.canStore(incomingBytes: 1, usedBytes: 1_048_576, capacityMB: 1))
+        XCTAssertFalse(PocketStoragePolicy.canStore(incomingBytes: -1, usedBytes: 0, capacityMB: 1))
         XCTAssertEqual(
             PocketStoragePolicy.uniqueFilename(
                 for: "demo.pdf",
@@ -94,6 +96,16 @@ final class NotchlyCoreTests: XCTestCase {
     func testLyricsCacheKeepsFailuresBriefAndSuccessfulResultsLonger() {
         XCTAssertEqual(LyricsCachePolicy.lifetime(hasLyrics: false), 5 * 60)
         XCTAssertEqual(LyricsCachePolicy.lifetime(hasLyrics: true), 6 * 60 * 60)
+    }
+
+    func testMusicRefreshGateCoalescesStalledSnapshots() {
+        var gate = MusicRefreshGate()
+        XCTAssertTrue(gate.begin())
+        XCTAssertFalse(gate.begin())
+        XCTAssertFalse(gate.begin())
+        XCTAssertTrue(gate.finish())
+        XCTAssertTrue(gate.begin())
+        XCTAssertFalse(gate.finish())
     }
 
     @MainActor

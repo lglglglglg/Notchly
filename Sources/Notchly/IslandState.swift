@@ -36,6 +36,7 @@ final class IslandState: ObservableObject {
 
     private var timer: Timer?
     private var musicRefreshTask: Task<Void, Never>?
+    private var musicRefreshGate = MusicRefreshGate()
     private var musicActionTask: Task<Void, Never>?
     private var clearMusicActionMessageTask: Task<Void, Never>?
     private var artworkTask: Task<Void, Never>?
@@ -157,12 +158,18 @@ final class IslandState: ObservableObject {
     }
 
     func refreshMusic() {
-        musicRefreshTask?.cancel()
+        // AppleScript does not reliably stop when its surrounding Swift task is
+        // cancelled. Starting a replacement every timer tick would therefore
+        // queue work behind a stalled player. Coalesce refresh requests until
+        // the active snapshot has completed instead.
+        guard musicRefreshGate.begin() else {
+            return
+        }
         musicRefreshTask = Task { [weak self] in
             guard let self else { return }
+            defer { self.finishMusicRefresh() }
             do {
                 let playback = try await self.musicService.snapshot()
-                guard !Task.isCancelled else { return }
                 if let playback {
                     self.apply(playback)
                     UserDefaults.standard.set(true, forKey: self.musicConnectedKey)
@@ -192,6 +199,11 @@ final class IslandState: ObservableObject {
                 self.onMusicRefreshPolicyChanged?()
             }
         }
+    }
+
+    private func finishMusicRefresh() {
+        musicRefreshTask = nil
+        if musicRefreshGate.finish() { refreshMusic() }
     }
 
     private func apply(_ playback: MusicPlayback) {
@@ -506,6 +518,28 @@ final class IslandState: ObservableObject {
                 standMinutes: settings.standIntervalMinutes
             )
         }
+    }
+}
+
+/// Coalesces timer-driven music refreshes so a non-cooperative AppleScript
+/// operation cannot create an unbounded queue of stale snapshots.
+struct MusicRefreshGate {
+    private(set) var isRefreshing = false
+    private var hasPendingRefresh = false
+
+    mutating func begin() -> Bool {
+        guard !isRefreshing else {
+            hasPendingRefresh = true
+            return false
+        }
+        isRefreshing = true
+        return true
+    }
+
+    mutating func finish() -> Bool {
+        isRefreshing = false
+        defer { hasPendingRefresh = false }
+        return hasPendingRefresh
     }
 }
 
