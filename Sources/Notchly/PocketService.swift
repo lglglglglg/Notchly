@@ -33,7 +33,7 @@ final class PocketService: ObservableObject {
     var storageSummary: String {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
-        return "(formatter.string(fromByteCount: usedBytes)) / (settings.pocketCapacityMB) MB"
+        return "\(formatter.string(fromByteCount: usedBytes)) / \(settings.pocketCapacityMB) MB"
     }
 
     func importURLs(_ urls: [URL]) {
@@ -44,8 +44,11 @@ final class PocketService: ObservableObject {
             defer { if accessed { source.stopAccessingSecurityScopedResource() } }
 
             let size = allocatedSize(of: source)
-            let limit = Int64(settings.pocketCapacityMB) * 1_024 * 1_024
-            guard usedBytes + size <= limit else {
+            guard PocketStoragePolicy.canStore(
+                incomingBytes: size,
+                usedBytes: usedBytes,
+                capacityMB: settings.pocketCapacityMB
+            ) else {
                 statusMessage = "托盘容量不足，请先清理文件"
                 continue
             }
@@ -55,11 +58,11 @@ final class PocketService: ObservableObject {
                 imported += 1
                 reload()
             } catch {
-                statusMessage = "无法保存 (source.lastPathComponent)"
+                statusMessage = "无法保存 \(source.lastPathComponent)"
             }
         }
         if imported > 0 {
-            statusMessage = "已暂存 (imported) 个文件"
+            statusMessage = "已暂存 \(imported) 个文件"
         }
     }
 
@@ -78,7 +81,7 @@ final class PocketService: ObservableObject {
     }
 
     func cleanExpiredItems() {
-        let cutoff = Date().addingTimeInterval(-TimeInterval(settings.pocketRetentionDays * 86_400))
+        let cutoff = PocketStoragePolicy.expirationCutoff(retentionDays: settings.pocketRetentionDays)
         guard let urls = try? fileManager.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.contentModificationDateKey],
@@ -107,15 +110,14 @@ final class PocketService: ObservableObject {
     private func uniqueDestination(for filename: String) -> URL {
         let original = directory.appendingPathComponent(filename)
         guard fileManager.fileExists(atPath: original.path) else { return original }
-        let extensionName = original.pathExtension
-        let stem = original.deletingPathExtension().lastPathComponent
-        var index = 2
-        while true {
-            let candidateName = extensionName.isEmpty ? "(stem) (index)" : "(stem) (index).(extensionName)"
-            let candidate = directory.appendingPathComponent(candidateName)
-            if !fileManager.fileExists(atPath: candidate.path) { return candidate }
-            index += 1
-        }
+        let existingNames = Set((try? fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ))?.map(\.lastPathComponent) ?? [])
+        return directory.appendingPathComponent(
+            PocketStoragePolicy.uniqueFilename(for: filename, existingNames: existingNames)
+        )
     }
 
     private func allocatedSize(of url: URL) -> Int64 {
@@ -129,5 +131,31 @@ final class PocketService: ObservableObject {
             }
         }
         return Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
+    }
+}
+
+enum PocketStoragePolicy {
+    static func canStore(incomingBytes: Int64, usedBytes: Int64, capacityMB: Int) -> Bool {
+        incomingBytes >= 0 && usedBytes >= 0
+            && usedBytes + incomingBytes <= Int64(capacityMB) * 1_024 * 1_024
+    }
+
+    static func expirationCutoff(retentionDays: Int, now: Date = .now) -> Date {
+        now.addingTimeInterval(-TimeInterval(retentionDays * 86_400))
+    }
+
+    static func uniqueFilename(for filename: String, existingNames: Set<String>) -> String {
+        guard existingNames.contains(filename) else { return filename }
+        let url = URL(fileURLWithPath: filename)
+        let extensionName = url.pathExtension
+        let stem = url.deletingPathExtension().lastPathComponent
+        var index = 2
+        while true {
+            let candidate = extensionName.isEmpty
+                ? "\(stem) (\(index))"
+                : "\(stem) (\(index)).\(extensionName)"
+            if !existingNames.contains(candidate) { return candidate }
+            index += 1
+        }
     }
 }

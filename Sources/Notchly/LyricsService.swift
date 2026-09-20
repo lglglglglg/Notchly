@@ -8,21 +8,43 @@ struct TimedLyricLine: Identifiable, Hashable, Sendable {
 }
 
 actor LyricsService {
-    private var cache: [String: [TimedLyricLine]] = [:]
+    private struct CacheEntry {
+        let lines: [TimedLyricLine]
+        let expiresAt: Date
+    }
+
+    private var cache: [String: CacheEntry] = [:]
+    private let successfulCacheLifetime: TimeInterval = 6 * 60 * 60
+    private let failedCacheLifetime: TimeInterval = 5 * 60
+    private let cacheLimit = 200
 
     func lyrics(for title: String, artist: String, duration: TimeInterval) async -> [TimedLyricLine] {
-        let key = "\(normalized(title))|\(normalized(artist))"
-        if let cached = cache[key] { return cached }
+        let key = "\(Self.normalized(title))|\(Self.normalized(artist))"
+        let now = Date()
+        if let cached = cache[key], cached.expiresAt > now { return cached.lines }
+        cache[key] = nil
 
         do {
             let songID = try await searchSongID(title: title, artist: artist, duration: duration)
             let lines = try await fetchLyrics(songID: songID)
-            cache[key] = lines
+            store(lines, for: key, lifetime: successfulCacheLifetime, now: now)
             return lines
         } catch {
-            cache[key] = []
+            // A transient network failure should not suppress retries for the
+            // rest of the app session, while still avoiding repeated requests.
+            store([], for: key, lifetime: failedCacheLifetime, now: now)
             return []
         }
+    }
+
+    private func store(_ lines: [TimedLyricLine], for key: String, lifetime: TimeInterval, now: Date) {
+        cache[key] = CacheEntry(lines: lines, expiresAt: now.addingTimeInterval(lifetime))
+        guard cache.count > cacheLimit else { return }
+        let keysToRemove = cache
+            .sorted { $0.value.expiresAt < $1.value.expiresAt }
+            .prefix(cache.count - cacheLimit)
+            .map(\.key)
+        keysToRemove.forEach { cache[$0] = nil }
     }
 
     private func searchSongID(title: String, artist: String, duration: TimeInterval) async throws -> Int {
@@ -38,8 +60,8 @@ actor LyricsService {
         let response = try JSONDecoder().decode(SearchResponse.self, from: data)
         guard let songs = response.result?.songs, !songs.isEmpty else { throw LyricsError.notFound }
 
-        let expectedTitle = normalized(title)
-        let expectedArtist = normalized(artist)
+        let expectedTitle = Self.normalized(title)
+        let expectedArtist = Self.normalized(artist)
         let best = songs.max { lhs, rhs in
             score(lhs, expectedTitle: expectedTitle, expectedArtist: expectedArtist, duration: duration)
                 < score(rhs, expectedTitle: expectedTitle, expectedArtist: expectedArtist, duration: duration)
@@ -61,7 +83,7 @@ actor LyricsService {
         let data = try await request(components.url!)
         let response = try JSONDecoder().decode(LyricResponse.self, from: data)
         guard let source = response.lrc?.lyric else { throw LyricsError.notFound }
-        let lines = parseLRC(source)
+        let lines = Self.parseLRC(source)
         guard !lines.isEmpty else { throw LyricsError.notFound }
         return lines
     }
@@ -84,21 +106,41 @@ actor LyricsService {
         expectedArtist: String,
         duration: TimeInterval
     ) -> Int {
-        let candidateTitle = normalized(song.name)
-        let candidateArtists = normalized(song.artists.map(\.name).joined(separator: " "))
+        Self.matchScore(
+            candidateTitle: song.name,
+            candidateArtist: song.artists.map(\.name).joined(separator: " "),
+            expectedTitle: expectedTitle,
+            expectedArtist: expectedArtist,
+            duration: duration,
+            candidateDuration: Double(song.duration) / 1_000
+        )
+    }
+
+    nonisolated static func matchScore(
+        candidateTitle: String,
+        candidateArtist: String,
+        expectedTitle: String,
+        expectedArtist: String,
+        duration: TimeInterval,
+        candidateDuration: TimeInterval
+    ) -> Int {
+        let candidateTitle = normalized(candidateTitle)
+        let candidateArtists = normalized(candidateArtist)
+        let expectedTitle = normalized(expectedTitle)
+        let expectedArtist = normalized(expectedArtist)
         var value = candidateTitle == expectedTitle ? 80 : (candidateTitle.contains(expectedTitle) || expectedTitle.contains(candidateTitle) ? 45 : 0)
         if !expectedArtist.isEmpty, candidateArtists.contains(expectedArtist) || expectedArtist.contains(candidateArtists) { value += 35 }
-        if duration > 0, abs((Double(song.duration) / 1_000) - duration) < 4 { value += 20 }
+        if duration > 0, abs(candidateDuration - duration) < 4 { value += 20 }
         return value
     }
 
-    private func normalized(_ value: String) -> String {
+    nonisolated private static func normalized(_ value: String) -> String {
         value.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: .current)
             .replacingOccurrences(of: #"[\s\p{P}\p{S}]"#, with: "", options: .regularExpression)
             .lowercased()
     }
 
-    private func parseLRC(_ source: String) -> [TimedLyricLine] {
+    nonisolated static func parseLRC(_ source: String) -> [TimedLyricLine] {
         let pattern = #"\[(\d{1,3}):(\d{2})(?:[\.:](\d{1,3}))?\]"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         var result: [TimedLyricLine] = []

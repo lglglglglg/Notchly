@@ -13,6 +13,16 @@ struct MusicPlayback: Sendable {
     let artworkURL: URL?
 }
 
+private struct ScriptedPlayback: Sendable {
+    let provider: PlayerProvider
+    let title: String
+    let artist: String
+    let isPlaying: Bool
+    let elapsed: TimeInterval
+    let duration: TimeInterval
+    let artworkURL: URL?
+}
+
 @MainActor
 final class MusicService {
     private let separator = "\u{001F}"
@@ -22,6 +32,7 @@ final class MusicService {
     private var cachedArtworkKey: String?
     private var cachedArtworkData: Data?
     private let mediaController: MediaController
+    private let scriptReader = MusicScriptReader()
     private var systemPlayback: (provider: PlayerProvider, playback: MusicPlayback)?
 
     init() {
@@ -40,46 +51,47 @@ final class MusicService {
             return systemPlayback.playback
         }
 
-        var pausedScriptedPlayback: MusicPlayback?
-        for provider in scriptedProviders where provider.isNativeScriptableRunning {
-            let response = try run(provider.snapshotScript(separator: separator))
-            guard !response.isEmpty else { continue }
-            let fields = response.components(separatedBy: separator)
-            guard fields.count == 6 else { throw MusicServiceError.invalidResponse }
-            let elapsed = max(0, Double(fields[3]) ?? 0)
-            var duration = max(0, Double(fields[4]) ?? 0)
-            if provider == .spotify { duration /= 1_000 }
-            let artworkKey = "\(provider.bundleIdentifiers.first ?? provider.displayName):\(fields[0]):\(fields[1])"
-            if artworkKey != cachedArtworkKey {
-                cachedArtworkKey = artworkKey
-                cachedArtworkData = provider == .music ? loadAppleMusicArtwork() : nil
-            }
-            let playback = MusicPlayback(
-                title: fields[0],
-                artist: fields[1],
-                isPlaying: fields[2].lowercased() == "true",
-                source: provider.displayName,
-                elapsed: min(elapsed, duration > 0 ? duration : elapsed),
-                duration: duration,
-                artworkData: cachedArtworkData,
-                artworkURL: URL(string: fields[5])
-            )
-            if playback.isPlaying {
-                activeProvider = provider
-                return playback
-            }
-            pausedScriptedPlayback = playback
-        }
+        let runningScriptedProviders = scriptedProviders.filter(\.isNativeScriptableRunning)
+        let scriptedPlayback = try await scriptReader.snapshot(
+            providers: runningScriptedProviders,
+            separator: separator
+        )
 
-        if let systemPlayback {
+        if let systemPlayback, systemPlayback.playback.isPlaying {
             activeProvider = systemPlayback.provider
             return systemPlayback.playback
         }
 
-        if pausedScriptedPlayback != nil {
-            activeProvider = scriptedProviders.first(where: \.isNativeScriptableRunning)
+        guard let scriptedPlayback else {
+            if let systemPlayback {
+                activeProvider = systemPlayback.provider
+                return systemPlayback.playback
+            }
+            return nil
         }
-        return pausedScriptedPlayback
+
+        let artworkKey = "\(scriptedPlayback.provider.bundleIdentifiers.first ?? scriptedPlayback.provider.displayName):\(scriptedPlayback.title):\(scriptedPlayback.artist)"
+        if artworkKey != cachedArtworkKey {
+            cachedArtworkKey = artworkKey
+            cachedArtworkData = nil
+            if scriptedPlayback.provider == .music {
+                cachedArtworkData = await scriptReader.appleMusicArtwork()
+            }
+        }
+        activeProvider = scriptedPlayback.provider
+        return MusicPlayback(
+            title: scriptedPlayback.title,
+            artist: scriptedPlayback.artist,
+            isPlaying: scriptedPlayback.isPlaying,
+            source: scriptedPlayback.provider.displayName,
+            elapsed: min(
+                scriptedPlayback.elapsed,
+                scriptedPlayback.duration > 0 ? scriptedPlayback.duration : scriptedPlayback.elapsed
+            ),
+            duration: scriptedPlayback.duration,
+            artworkData: cachedArtworkData,
+            artworkURL: scriptedPlayback.artworkURL
+        )
     }
 
     func togglePlayback() throws { try perform(.toggle) }
@@ -183,6 +195,90 @@ final class MusicService {
     }
 }
 
+/// Serializes AppleScript work away from the main actor. A stalled player can
+/// therefore delay only the next music snapshot, never island interaction.
+private final class MusicScriptReader: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "com.notchly.music.apple-script", qos: .utility)
+
+    func snapshot(providers: [PlayerProvider], separator: String) async throws -> ScriptedPlayback? {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    continuation.resume(returning: try Self.readSnapshot(
+                        providers: providers,
+                        separator: separator
+                    ))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func appleMusicArtwork() async -> Data? {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: Self.readAppleMusicArtwork())
+            }
+        }
+    }
+
+    private static func readSnapshot(
+        providers: [PlayerProvider],
+        separator: String
+    ) throws -> ScriptedPlayback? {
+        var pausedPlayback: ScriptedPlayback?
+        for provider in providers {
+            let response = try run(provider.snapshotScript(separator: separator))
+            guard !response.isEmpty else { continue }
+            let fields = response.components(separatedBy: separator)
+            guard fields.count == 6 else { throw MusicServiceError.invalidResponse }
+            let elapsed = max(0, Double(fields[3]) ?? 0)
+            var duration = max(0, Double(fields[4]) ?? 0)
+            if provider == .spotify { duration /= 1_000 }
+            let playback = ScriptedPlayback(
+                provider: provider,
+                title: fields[0],
+                artist: fields[1],
+                isPlaying: fields[2].lowercased() == "true",
+                elapsed: elapsed,
+                duration: duration,
+                artworkURL: URL(string: fields[5])
+            )
+            if playback.isPlaying { return playback }
+            pausedPlayback = playback
+        }
+        return pausedPlayback
+    }
+
+    private static func run(_ source: String) throws -> String {
+        var error: NSDictionary?
+        guard let script = NSAppleScript(source: source) else {
+            throw MusicServiceError.script("无法编译播放器自动化脚本")
+        }
+        let result = script.executeAndReturnError(&error)
+        if let error {
+            let message = error[NSAppleScript.errorMessage] as? String ?? "播放器没有返回结果"
+            throw MusicServiceError.script(message)
+        }
+        return result.stringValue ?? ""
+    }
+
+    private static func readAppleMusicArtwork() -> Data? {
+        var error: NSDictionary?
+        let source = """
+        tell application "Music"
+            if (count of artworks of current track) is 0 then return missing value
+            return raw data of artwork 1 of current track
+        end tell
+        """
+        guard let script = NSAppleScript(source: source) else { return nil }
+        let result = script.executeAndReturnError(&error)
+        guard error == nil, result.descriptorType != 0 else { return nil }
+        return result.data
+    }
+}
+
 private enum PlayerCommand {
     case toggle
     case previous
@@ -197,7 +293,7 @@ private enum PlayerCommand {
     }
 }
 
-private enum PlayerProvider: Equatable {
+private enum PlayerProvider: Equatable, Sendable {
     case spotify
     case music
     case netease

@@ -8,8 +8,11 @@ final class IslandController {
     private let presentation = NotchPresentation()
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
+    private var desktopLyricsObserver: NSObjectProtocol?
     private var refreshTimer: Timer?
     private var pointerTimer: Timer?
+    private var refreshInterval: TimeInterval?
+    private var pointerInterval: TimeInterval?
     private var collapseTask: Task<Void, Never>?
     private var wasPointerInside = false
 
@@ -45,9 +48,19 @@ final class IslandController {
             object: nil
         )
         showCompactPanel()
+        state.onMusicRefreshPolicyChanged = { [weak self] in
+            self?.updateRefreshSchedule()
+        }
+        desktopLyricsObserver = NotificationCenter.default.addObserver(
+            forName: AppSettings.desktopLyricsDidChange,
+            object: state.settings,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.updateRefreshSchedule() }
+        }
         state.refreshMusic()
-        startRefreshing()
-        startPointerTracking()
+        updateRefreshSchedule()
+        updatePointerTracking()
         // During an app's very first launch NSScreen can briefly be unavailable
         // while the menu-bar-only app finishes activation. Retry once on the
         // next run-loop window so the welcome island reliably opens by itself.
@@ -79,7 +92,8 @@ final class IslandController {
         presentation.phase = .expanded
         panel.orderFrontRegardless()
         installDismissMonitors()
-        startRefreshing()
+        updateRefreshSchedule()
+        updatePointerTracking()
     }
 
     private func collapse() {
@@ -87,6 +101,8 @@ final class IslandController {
         guard presentation.phase != .compact else { return }
         presentation.phase = .compact
         removeDismissMonitors()
+        updateRefreshSchedule()
+        updatePointerTracking()
 
     }
 
@@ -152,12 +168,17 @@ final class IslandController {
         ), display: true)
     }
 
-    private func startPointerTracking() {
+    private func updatePointerTracking() {
+        // The compact island only needs to detect entry into its small hover
+        // target. Full-rate tracking is reserved for the interactive panel.
+        let interval = presentation.phase == .expanded ? 1.0 / 60.0 : 1.0 / 12.0
+        guard pointerInterval != interval else { return }
         pointerTimer?.invalidate()
-        pointerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        pointerInterval = interval
+        pointerTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.updatePointerState() }
         }
-        pointerTimer?.tolerance = 1.0 / 120.0
+        pointerTimer?.tolerance = interval * 0.25
     }
 
     private func updatePointerState() {
@@ -183,20 +204,25 @@ final class IslandController {
         )
     }
 
-    private func startRefreshing() {
-        guard refreshTimer == nil else { return }
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+    private func updateRefreshSchedule() {
+        let interval: TimeInterval
+        if presentation.phase == .expanded || state.isPlaying || state.settings.showsDesktopLyrics {
+            interval = 2
+        } else if state.hasMusic {
+            interval = 6
+        } else {
+            interval = 15
+        }
+        guard refreshInterval != interval else { return }
+        refreshTimer?.invalidate()
+        refreshInterval = interval
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.state.refreshMusic()
                 self?.state.refreshPower()
             }
         }
-        refreshTimer?.tolerance = 0.3
-    }
-
-    private func stopRefreshing() {
-        refreshTimer?.invalidate()
-        refreshTimer = nil
+        refreshTimer?.tolerance = min(1, interval * 0.15)
     }
 
     private func installDismissMonitors() {

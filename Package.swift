@@ -10,6 +10,10 @@ let package = Package(
         .executableTarget(
             name: "Notchly",
             dependencies: [.product(name: "MediaRemoteAdapter", package: "MediaRemoteAdapter")]
+        ),
+        .testTarget(
+            name: "NotchlyTests",
+            dependencies: ["Notchly"]
         )
     ]
 )

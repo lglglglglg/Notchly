@@ -30,6 +30,7 @@ final class IslandState: ObservableObject {
     @Published private(set) var calendarTitle = "连接日历后显示下一项"
     @Published private(set) var calendarSubtitle = "你的日程只会保留在这台 Mac 上"
     @Published private(set) var isLoadingCalendar = false
+    var onMusicRefreshPolicyChanged: (@MainActor () -> Void)?
 
     private var timer: Timer?
     private var musicRefreshTask: Task<Void, Never>?
@@ -38,6 +39,9 @@ final class IslandState: ObservableObject {
     private var lyricTimer: Timer?
     private var musicSnapshotDate = Date()
     private var artworkKey: String?
+    private var artworkCache: [URL: ArtworkCacheEntry] = [:]
+    private let artworkCacheLifetime: TimeInterval = 60 * 60
+    private let artworkCacheLimit = 40
     private let calendarService = CalendarService()
     private let notificationService = NotificationService()
     private let musicService = MusicService()
@@ -52,7 +56,6 @@ final class IslandState: ObservableObject {
         pocket = PocketService(settings: settings)
         restorePomodoro()
         refreshPower()
-        startLyricTicker()
     }
 
     var timerText: String {
@@ -116,13 +119,17 @@ final class IslandState: ObservableObject {
 
     private func updateRemainingTime() {
         guard let endDate = UserDefaults.standard.object(forKey: timerEndDateKey) as? Date else { return }
-        remainingSeconds = max(0, Int(ceil(endDate.timeIntervalSinceNow)))
+        remainingSeconds = Self.remainingSeconds(until: endDate)
         UserDefaults.standard.set(remainingSeconds, forKey: remainingSecondsKey)
         guard remainingSeconds == 0 else { return }
         isPomodoroRunning = false
         timer?.invalidate()
         timer = nil
         UserDefaults.standard.removeObject(forKey: timerEndDateKey)
+    }
+
+    static func remainingSeconds(until endDate: Date, now: Date = .now) -> Int {
+        max(0, Int(ceil(endDate.timeIntervalSince(now))))
     }
 
     func connectCalendar() {
@@ -167,6 +174,8 @@ final class IslandState: ObservableObject {
                     self.lyricLines = []
                     self.isLoadingLyrics = false
                     self.publishLyrics(at: Date())
+                    self.updateLyricTicker()
+                    self.onMusicRefreshPolicyChanged?()
                 }
             } catch {
                 guard !Task.isCancelled else { return }
@@ -175,6 +184,8 @@ final class IslandState: ObservableObject {
                 self.musicSource = "Notchly"
                 self.hasMusic = false
                 self.isPlaying = false
+                self.updateLyricTicker()
+                self.onMusicRefreshPolicyChanged?()
             }
         }
     }
@@ -200,6 +211,8 @@ final class IslandState: ObservableObject {
             isPlaying: playback.isPlaying
         )
         musicSnapshotDate = now
+        updateLyricTicker()
+        onMusicRefreshPolicyChanged?()
 
         guard !isSameTrack else { return }
         artworkKey = newTrackKey
@@ -208,16 +221,46 @@ final class IslandState: ObservableObject {
         if let data = playback.artworkData, let image = NSImage(data: data) {
             artworkImage = image
         } else if let url = playback.artworkURL {
+            if let cached = cachedArtwork(for: url) {
+                artworkImage = cached
+                return
+            }
             artworkImage = nil
             artworkTask = Task { [weak self] in
                 guard let self else { return }
-                let result = try? await URLSession.shared.data(from: url)
-                guard !Task.isCancelled, let data = result?.0, let image = NSImage(data: data) else { return }
-                self.artworkImage = image
+            let request = URLRequest(url: url, timeoutInterval: 10)
+            guard let (data, response) = try? await URLSession.shared.data(for: request),
+                  !Task.isCancelled,
+                  let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode),
+                  http.expectedContentLength <= 8 * 1_024 * 1_024 || http.expectedContentLength == NSURLSessionTransferSizeUnknown,
+                  data.count <= 8 * 1_024 * 1_024,
+                  let image = NSImage(data: data) else { return }
+            self.storeArtwork(image, for: url)
+            self.artworkImage = image
             }
         } else {
             artworkImage = nil
         }
+    }
+
+    private func cachedArtwork(for url: URL, now: Date = .now) -> NSImage? {
+        guard let entry = artworkCache[url] else { return nil }
+        guard now.timeIntervalSince(entry.cachedAt) < artworkCacheLifetime else {
+            artworkCache[url] = nil
+            return nil
+        }
+        return entry.image
+    }
+
+    private func storeArtwork(_ image: NSImage, for url: URL, now: Date = .now) {
+        artworkCache[url] = ArtworkCacheEntry(image: image, cachedAt: now)
+        guard artworkCache.count > artworkCacheLimit else { return }
+        let expired = artworkCache
+            .sorted { $0.value.cachedAt < $1.value.cachedAt }
+            .prefix(artworkCache.count - artworkCacheLimit)
+            .map(\.key)
+        expired.forEach { artworkCache[$0] = nil }
     }
 
     private func reconciledElapsed(
@@ -257,11 +300,18 @@ final class IslandState: ObservableObject {
             self.lyricLines = lines
             self.isLoadingLyrics = false
             self.publishLyrics(at: Date())
+            self.updateLyricTicker()
         }
     }
 
-    private func startLyricTicker() {
-        lyricTimer?.invalidate()
+    private func updateLyricTicker() {
+        let shouldTick = isPlaying && !lyricLines.isEmpty
+        guard shouldTick else {
+            lyricTimer?.invalidate()
+            lyricTimer = nil
+            return
+        }
+        guard lyricTimer == nil else { return }
         lyricTimer = Timer.scheduledTimer(withTimeInterval: 0.10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.publishLyrics(at: Date()) }
         }
@@ -429,6 +479,11 @@ final class IslandState: ObservableObject {
             )
         }
     }
+}
+
+private struct ArtworkCacheEntry {
+    let image: NSImage
+    let cachedAt: Date
 }
 
 private extension Date {
