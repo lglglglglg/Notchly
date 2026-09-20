@@ -14,7 +14,7 @@ struct NotchlyApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(settings: appDelegate.settings)
+            SettingsView(state: appDelegate.state)
         }
     }
 }
@@ -22,7 +22,7 @@ struct NotchlyApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let settings = AppSettings()
-    private lazy var state = IslandState(settings: settings)
+    lazy var state = IslandState(settings: settings)
     private var islandController: IslandController?
     private var desktopLyricsController: DesktopLyricsController?
     private var statusItem: NSStatusItem?
@@ -164,7 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.isReleasedWhenClosed = false
             window.tabbingMode = .disallowed
             window.collectionBehavior = [.moveToActiveSpace]
-            window.contentView = NSHostingView(rootView: SettingsView(settings: settings))
+            window.contentView = NSHostingView(rootView: SettingsView(state: state))
             window.center()
             settingsWindowController = NSWindowController(window: window)
         }

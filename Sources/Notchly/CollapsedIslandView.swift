@@ -164,6 +164,7 @@ struct NotchIslandView: View {
                         style: state.settings.musicVisualizerStyle,
                         isActive: state.isPlaying,
                         audioLevel: state.settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
+                        usesAudioReactiveMode: state.settings.audioReactiveVisualizerEnabled,
                         tint: state.settings.islandAccentTheme.accent,
                         highlight: state.settings.islandAccentTheme.highlight
                     )

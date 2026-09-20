@@ -16,6 +16,7 @@ final class SystemAudioAnalyzer: NSObject {
     private var startTask: Task<Void, Never>?
     private var generation = 0
     private var hasRequestedPermission = false
+    private var hasReceivedAudio = false
     private let audioQueue = DispatchQueue(label: "com.notchly.audio-reactive", qos: .userInteractive)
     nonisolated private let meter = AudioEnergyMeter()
 
@@ -32,6 +33,7 @@ final class SystemAudioAnalyzer: NSObject {
 
         generation += 1
         let expectedGeneration = generation
+        hasReceivedAudio = false
         onStatus?("正在连接系统音频…")
         startTask = Task { [weak self] in
             guard let self else { return }
@@ -80,7 +82,7 @@ final class SystemAudioAnalyzer: NSObject {
                 }
                 stream = candidate
                 startTask = nil
-                onStatus?("正在根据系统音频律动")
+                onStatus?("已连接系统音频，等待播放声音…")
             } catch {
                 guard generation == expectedGeneration else { return }
                 stream = nil
@@ -96,6 +98,7 @@ final class SystemAudioAnalyzer: NSObject {
         startTask = nil
         let activeStream = stream
         stream = nil
+        hasReceivedAudio = false
         meter.reset()
         onLevel?(0)
         onStatus?(nil)
@@ -106,9 +109,18 @@ final class SystemAudioAnalyzer: NSObject {
     private func handleStop(error: Error) {
         stream = nil
         startTask = nil
+        hasReceivedAudio = false
         meter.reset()
         onLevel?(0)
         onStatus?("系统音频连接已中断；播放时会自动重试")
+    }
+
+    private func receiveAudioLevel(_ level: Double) {
+        if !hasReceivedAudio {
+            hasReceivedAudio = true
+            onStatus?("正在根据系统音频律动")
+        }
+        onLevel?(level)
     }
 }
 
@@ -121,7 +133,7 @@ extension SystemAudioAnalyzer: SCStreamOutput {
         guard outputType == .audio,
               let level = meter.ingest(sampleBuffer: sampleBuffer) else { return }
         Task { @MainActor [weak self] in
-            self?.onLevel?(level)
+            self?.receiveAudioLevel(level)
         }
     }
 }

@@ -70,9 +70,9 @@ final class IslandState: ObservableObject {
             self?.refreshMusic()
         }
         audioAnalyzer.onLevel = { [weak self] level in
-            // A stream that has not delivered usable audio should fall back to
-            // the normal animated visualizer instead of pinning every bar low.
-            self?.audioReactiveLevel = level > 0.015 ? level : nil
+            // A zero is meaningful: it represents a quiet moment in the real
+            // audio stream. Never turn it into the simulated visualizer.
+            self?.audioReactiveLevel = level
         }
         audioAnalyzer.onStatus = { [weak self] status in
             self?.audioReactiveStatus = status

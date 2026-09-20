@@ -569,6 +569,7 @@ struct IslandView: View {
                 style: settings.musicVisualizerStyle,
                 isActive: state.isPlaying,
                 audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
+                usesAudioReactiveMode: settings.audioReactiveVisualizerEnabled,
                 tint: settings.islandAccentTheme.accent,
                 highlight: settings.islandAccentTheme.highlight
             )
@@ -586,7 +587,6 @@ struct IslandView: View {
                         .font(.callout.weight(.medium))
                         .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.78))
                     Spacer(minLength: 0)
-                    lyricCalibrationControls
                 }
             } else {
                 HStack(spacing: 5) {
@@ -649,9 +649,13 @@ struct IslandView: View {
             }
             .help("歌词后退 0.5 秒")
 
-            Text(lyricOffsetLabel)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 40)
+            Button {
+                settings.lyricOffset = 0
+            } label: {
+                Label("重置 \(lyricOffsetLabel)", systemImage: "arrow.counterclockwise")
+            }
+            .help("恢复原始歌词同步（0.0 秒）")
+            .foregroundStyle(.secondary)
 
             Button { adjustLyricOffset(by: 0.5) } label: {
                 Text("+0.5")
@@ -674,6 +678,7 @@ struct IslandView: View {
                     style: settings.musicVisualizerStyle,
                     isActive: state.isPlaying,
                     audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
+                    usesAudioReactiveMode: settings.audioReactiveVisualizerEnabled,
                     tint: settings.islandAccentTheme.accent,
                     highlight: settings.islandAccentTheme.highlight
                 )
@@ -776,8 +781,14 @@ private struct HelloScriptPath: Shape {
 }
 
 struct SettingsView: View {
-    @ObservedObject var settings: AppSettings
+    @ObservedObject private var state: IslandState
+    @ObservedObject private var settings: AppSettings
     @State private var aboutMessage: String?
+
+    init(state: IslandState) {
+        self.state = state
+        settings = state.settings
+    }
 
     var body: some View {
         TabView {
@@ -888,6 +899,13 @@ struct SettingsView: View {
                 ) {
                     Toggle("", isOn: $settings.audioReactiveVisualizerEnabled)
                         .labelsHidden()
+                }
+                if settings.audioReactiveVisualizerEnabled {
+                    Label(
+                        state.audioReactiveStatus ?? "等待系统音频采样…",
+                        systemImage: state.audioReactiveStatus == "正在根据系统音频律动" ? "waveform" : "waveform.badge.exclamationmark"
+                    )
+                    .settingsHint()
                 }
             }
 
