@@ -864,19 +864,19 @@ struct SettingsView: View {
             SettingsCard(title: "健康提醒", icon: "figure.stand") {
                 SettingLine(title: "喝水提醒", detail: "按设定间隔发送本地通知") {
                     HStack(spacing: 10) {
-                        Stepper("\(settings.hydrationIntervalMinutes) 分钟", value: $settings.hydrationIntervalMinutes, in: 30...180, step: 30)
-                            .fixedSize()
+                        wellnessIntervalControl(value: $settings.hydrationIntervalMinutes)
                         Toggle("", isOn: $settings.hydrationRemindersEnabled).labelsHidden()
                     }
                 }
                 Divider()
                 SettingLine(title: "久坐提醒", detail: "提醒起身、伸展和放松肩颈") {
                     HStack(spacing: 10) {
-                        Stepper("\(settings.standIntervalMinutes) 分钟", value: $settings.standIntervalMinutes, in: 30...180, step: 15)
-                            .fixedSize()
+                        wellnessIntervalControl(value: $settings.standIntervalMinutes)
                         Toggle("", isOn: $settings.standRemindersEnabled).labelsHidden()
                     }
                 }
+                Text("间隔可直接输入，最短 5 分钟，最长 180 分钟。")
+                    .settingsHint()
                 Text("所有提醒都使用 macOS 本地通知，关闭开关后会取消已排定的提醒。")
                     .settingsHint()
                 Label(
@@ -893,8 +893,8 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 HStack {
-                    Button("发送测试通知") {
-                        state.sendWellnessTestNotification()
+                    Button("立即发送提醒") {
+                        state.sendWellnessReminderNow()
                     }
                     .buttonStyle(.bordered)
                     Button("打开通知设置") {
@@ -905,6 +905,24 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private func wellnessIntervalControl(value: Binding<Int>) -> some View {
+        let clampedValue = Binding<Int>(
+            get: { min(max(value.wrappedValue, 5), 180) },
+            set: { value.wrappedValue = min(max($0, 5), 180) }
+        )
+        return HStack(spacing: 5) {
+            TextField("分钟", value: clampedValue, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 58)
+                .multilineTextAlignment(.trailing)
+            Text("分钟")
+                .foregroundStyle(.secondary)
+            Stepper("", value: clampedValue, in: 5...180, step: 5)
+                .labelsHidden()
+        }
+        .fixedSize()
     }
 
     private var islandSettings: some View {
@@ -1112,9 +1130,43 @@ struct SettingsView: View {
                 SettingLine(title: "第三方许可", detail: "查看项目使用的开源组件与许可") {
                     Button("查看") { openThirdPartyNotices() }
                 }
+                Divider()
+                SettingLine(title: "开源协议", detail: "查看 Notchly 的 MIT License") {
+                    Button("查看") { openBundledDocument(resource: "LICENSE", fileExtension: nil) }
+                }
+                Divider()
+                SettingLine(title: "隐私政策", detail: "本地数据、系统权限与第三方请求说明") {
+                    Button("查看") { openBundledDocument(resource: "PRIVACY", fileExtension: "md") }
+                }
             }
 
-            Text("检查更新与在线反馈会在发布渠道确定后接入；当前入口不会伪装成已经联网。")
+            SettingsCard(title: "创作与版权", icon: "person.crop.circle") {
+                SettingLine(title: "工作室", detail: "项目创作与维护") {
+                    Text("韩十久工作室（Hanshijiu Studio）")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Divider()
+                SettingLine(title: "主理人", detail: "产品与开源维护") {
+                    Text("Stephan Li")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Divider()
+                SettingLine(title: "版权所有", detail: "© 2026 Stephan Li（韩十久工作室 · Hanshijiu Studio）") {
+                    Text("MIT License")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Divider()
+                SettingLine(title: "联系邮箱", detail: "项目反馈与公开联系邮箱") {
+                    Text("lixiaolongstephan@gmail.com")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Text("检查更新与在线反馈会在发布渠道确定后接入；当前入口不会伪装成已经联网。隐私政策与署名信息随应用一同提供。")
                 .settingsHint()
                 .padding(.horizontal, 4)
         }
@@ -1156,8 +1208,12 @@ struct SettingsView: View {
     }
 
     private func openThirdPartyNotices() {
-        guard let url = Bundle.main.url(forResource: "THIRD_PARTY_NOTICES", withExtension: "txt") else {
-            aboutMessage = "暂未找到第三方许可文件。"
+        openBundledDocument(resource: "THIRD_PARTY_NOTICES", fileExtension: "txt")
+    }
+
+    private func openBundledDocument(resource: String, fileExtension: String?) {
+        guard let url = Bundle.main.url(forResource: resource, withExtension: fileExtension) else {
+            aboutMessage = "暂未找到相关文档。"
             return
         }
         NSWorkspace.shared.open(url)

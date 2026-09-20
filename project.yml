@@ -15,6 +15,10 @@ targets:
       - Notchly/Assets.xcassets
       - path: Notchly/THIRD_PARTY_NOTICES.txt
         buildPhase: resources
+      - path: LICENSE
+        buildPhase: resources
+      - path: PRIVACY.md
+        buildPhase: resources
     dependencies:
       - package: MediaRemoteAdapter
         embed: true
@@ -26,8 +30,8 @@ targets:
         INFOPLIST_FILE: Notchly/Info.plist
         CODE_SIGN_ENTITLEMENTS: Notchly/Notchly.entitlements
         SWIFT_VERSION: '6.0'
-        MARKETING_VERSION: '0.13.8'
-        CURRENT_PROJECT_VERSION: '63'
+        MARKETING_VERSION: '0.13.9'
+        CURRENT_PROJECT_VERSION: '64'
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
   NotchlyTests:

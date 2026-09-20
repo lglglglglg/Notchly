@@ -648,9 +648,9 @@ final class IslandState: ObservableObject {
         }
     }
 
-    func sendWellnessTestNotification() {
+    func sendWellnessReminderNow() {
         Task {
-            wellnessReminderSchedule = await notificationService.scheduleWellnessTestNotification()
+            wellnessReminderSchedule = await notificationService.sendWellnessReminderNow()
         }
     }
 

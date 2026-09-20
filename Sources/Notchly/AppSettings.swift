@@ -166,9 +166,9 @@ final class AppSettings: ObservableObject {
         desktopLyricsTheme = DesktopLyricsTheme(rawValue: defaults.string(forKey: "desktopLyrics.theme") ?? "") ?? .white
         focusMinutes = min(max(defaults.object(forKey: "pomodoro.focusMinutes") as? Int ?? 25, 5), 120)
         hydrationRemindersEnabled = defaults.bool(forKey: "wellness.hydration.enabled")
-        hydrationIntervalMinutes = min(max(defaults.object(forKey: "wellness.hydration.minutes") as? Int ?? 60, 30), 180)
+        hydrationIntervalMinutes = min(max(defaults.object(forKey: "wellness.hydration.minutes") as? Int ?? 60, 5), 180)
         standRemindersEnabled = defaults.bool(forKey: "wellness.stand.enabled")
-        standIntervalMinutes = min(max(defaults.object(forKey: "wellness.stand.minutes") as? Int ?? 45, 30), 180)
+        standIntervalMinutes = min(max(defaults.object(forKey: "wellness.stand.minutes") as? Int ?? 45, 5), 180)
         pocketRetentionDays = min(max(defaults.object(forKey: "pocket.retentionDays") as? Int ?? 7, 1), 30)
         pocketCapacityMB = min(max(defaults.object(forKey: "pocket.capacityMB") as? Int ?? 512, 128), 2_048)
     }
