@@ -17,7 +17,7 @@ Notchly 采用 **SwiftUI + AppKit**：SwiftUI 负责岛内界面，AppKit 负责
 - [发布准备清单](docs/发布准备清单.md)：GitHub、Developer ID 公证和 App Store 两条路径的待办事项。
 - [第三方许可](Notchly/THIRD_PARTY_NOTICES.txt)：随应用分发的 `MediaRemoteAdapter` BSD-3-Clause 通知。
 
-仓库许可证尚未选定。在公开发布源代码前，维护者需要明确代码版权归属并选择许可证；未附许可证时，默认版权法并不会授予他人复制、修改或分发源码的权限。
+本项目使用 [MIT License](LICENSE)，版权主体暂按公开仓库维护者 `lglglglglg` 标注。MIT 允许使用、修改、商用和再分发，同时要求保留版权与许可文本；如需改用真实姓名、工作室或公司主体，应在公开发行前同步更新 `LICENSE` 与应用内版权字段。
 
 ## 运行
 

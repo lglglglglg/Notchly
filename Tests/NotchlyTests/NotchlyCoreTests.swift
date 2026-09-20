@@ -113,7 +113,7 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertEqual(NotchLayoutPolicy.expandedContentTopInset(notchHeight: 48), 52)
         XCTAssertEqual(
             NotchLayoutPolicy.expandedShoulderRadius(notchHeight: 32, containerHeight: 222),
-            46.4,
+            32,
             accuracy: 0.001
         )
     }

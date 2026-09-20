@@ -272,6 +272,8 @@ enum NotchLayoutPolicy {
     }
 
     static func expandedShoulderRadius(notchHeight: CGFloat, containerHeight: CGFloat) -> CGFloat {
-        min(max(42, notchHeight * 1.45), containerHeight * 0.28)
+        // Keep the top edge visually flat, like a shallow MacBook notch
+        // extension, rather than turning the expanded island into a deep arch.
+        min(max(28, notchHeight), containerHeight * 0.20)
     }
 }
