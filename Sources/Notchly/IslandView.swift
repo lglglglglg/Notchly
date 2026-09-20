@@ -582,9 +582,6 @@ struct IslandView: View {
             MusicVisualizer(
                 style: settings.musicVisualizerStyle,
                 isActive: state.isPlaying,
-                audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
-                audioBands: settings.audioReactiveVisualizerEnabled ? state.audioReactiveBands : nil,
-                usesAudioReactiveMode: settings.audioReactiveVisualizerEnabled,
                 tint: settings.islandAccentTheme.accent,
                 highlight: settings.islandAccentTheme.highlight
             )
@@ -699,10 +696,6 @@ struct IslandView: View {
                 MusicVisualizer(
                     style: settings.musicVisualizerStyle,
                     isActive: state.isPlaying,
-                    // Cover effects are intentionally simulated. They remain
-                    // legible at any volume and don't pretend to be a real
-                    // frequency analysis.
-                    usesAudioReactiveMode: false,
                     tint: settings.islandAccentTheme.accent,
                     highlight: settings.islandAccentTheme.highlight
                 )
@@ -940,26 +933,8 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 Text("频谱与波形显示在歌曲信息下方；脉冲与宇宙尘埃围绕封面显示。")
                     .settingsHint()
-                Divider()
-                if settings.musicVisualizerStyle.supportsAudioReactiveMode {
-                    SettingLine(
-                        title: "根据真实节拍律动（实验性）",
-                        detail: "仅在播放时本机分析系统音频能量；首次开启会请求“屏幕与系统音频录制”权限，不保存或上传声音。"
-                    ) {
-                        Toggle("", isOn: $settings.audioReactiveVisualizerEnabled)
-                            .labelsHidden()
-                    }
-                    if settings.audioReactiveVisualizerEnabled {
-                        Label(
-                            state.audioReactiveStatus ?? "等待系统音频采样…",
-                            systemImage: state.audioReactiveStatus == "正在根据系统音频律动" ? "waveform" : "waveform.badge.exclamationmark"
-                        )
-                        .settingsHint()
-                    }
-                } else {
-                    Text("脉冲与宇宙尘埃使用独立模拟动画，不依赖真实节拍，避免音频采样不稳定时显得突兀。")
-                        .settingsHint()
-                }
+                Text("所有动效均使用稳定的本地模拟动画，不读取系统音频，也不需要额外的录制权限。")
+                    .settingsHint()
             }
 
             SettingsCard(title: "歌词同步", icon: "metronome") {

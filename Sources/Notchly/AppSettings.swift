@@ -18,12 +18,6 @@ enum MusicVisualizerStyle: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Real system-audio analysis is useful only where it creates visible
-    /// frequency or waveform detail. Decorative cover effects stay simulated
-    /// so a quiet/failed capture can never make them look broken.
-    var supportsAudioReactiveMode: Bool {
-        self == .spectrum || self == .waveform
-    }
 }
 
 enum LyricSyncPolicy {
@@ -101,7 +95,6 @@ final class AppSettings: ObservableObject {
     static let desktopLyricsDidChange = Notification.Name("Notchly.desktopLyricsDidChange")
     static let desktopLyricsPositionReset = Notification.Name("Notchly.desktopLyricsPositionReset")
     static let wellnessRemindersDidChange = Notification.Name("Notchly.wellnessRemindersDidChange")
-    static let audioReactiveVisualizerDidChange = Notification.Name("Notchly.audioReactiveVisualizerDidChange")
     @Published private(set) var launchesAtLogin: Bool
     @Published private(set) var launchAtLoginMessage: String?
     @Published var showsPomodoro: Bool { didSet { saveCardPreferences() } }
@@ -115,19 +108,10 @@ final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(autoCollapseDelay, forKey: "interaction.collapseDelay") }
     }
     @Published var musicVisualizerStyle: MusicVisualizerStyle {
-        didSet {
-            UserDefaults.standard.set(musicVisualizerStyle.rawValue, forKey: "music.visualizer")
-            NotificationCenter.default.post(name: Self.audioReactiveVisualizerDidChange, object: self)
-        }
+        didSet { UserDefaults.standard.set(musicVisualizerStyle.rawValue, forKey: "music.visualizer") }
     }
     @Published var islandAccentTheme: IslandAccentTheme {
         didSet { UserDefaults.standard.set(islandAccentTheme.rawValue, forKey: "island.accentTheme") }
-    }
-    @Published var audioReactiveVisualizerEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(audioReactiveVisualizerEnabled, forKey: "music.audioReactiveVisualizer")
-            NotificationCenter.default.post(name: Self.audioReactiveVisualizerDidChange, object: self)
-        }
     }
     @Published var lyricOffset: Double {
         didSet { UserDefaults.standard.set(lyricOffset, forKey: "music.lyricOffset") }
@@ -172,7 +156,6 @@ final class AppSettings: ObservableObject {
         islandAccentTheme = IslandAccentTheme(
             rawValue: defaults.string(forKey: "island.accentTheme") ?? ""
         ) ?? .violet
-        audioReactiveVisualizerEnabled = defaults.bool(forKey: "music.audioReactiveVisualizer")
         lyricOffset = min(max(defaults.object(forKey: "music.lyricOffset") as? Double ?? 0, -3), 3)
         showsDesktopLyrics = defaults.object(forKey: "music.desktopLyrics") as? Bool ?? false
         desktopLyricsShowsNextLine = defaults.object(forKey: "desktopLyrics.nextLine") as? Bool ?? true

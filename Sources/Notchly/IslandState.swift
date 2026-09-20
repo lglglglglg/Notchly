@@ -18,9 +18,6 @@ final class IslandState: ObservableObject {
     @Published private(set) var musicActionMessage: String?
     @Published private(set) var musicElapsed: TimeInterval = 0
     @Published private(set) var musicDuration: TimeInterval = 0
-    @Published private(set) var audioReactiveLevel: Double?
-    @Published private(set) var audioReactiveBands: [Double]?
-    @Published private(set) var audioReactiveStatus: String?
     @Published private(set) var artworkImage: NSImage?
     @Published private(set) var lyricLines: [TimedLyricLine] = []
     @Published private(set) var isLoadingLyrics = false
@@ -61,7 +58,6 @@ final class IslandState: ObservableObject {
     private let calendarService = CalendarService()
     private let notificationService = NotificationService()
     private let musicService = MusicService()
-    private let audioAnalyzer = SystemAudioAnalyzer()
     private let lyricsService = LyricsService()
     private let powerService = PowerService()
     private let timerEndDateKey = "pomodoro.endDate"
@@ -72,15 +68,6 @@ final class IslandState: ObservableObject {
         pocket = PocketService(settings: settings)
         musicService.onSystemPlaybackChanged = { [weak self] in
             self?.refreshMusic()
-        }
-        audioAnalyzer.onFrame = { [weak self] frame in
-            // A zero is meaningful: it represents a quiet moment in the real
-            // audio stream. Never turn it into the simulated visualizer.
-            self?.audioReactiveLevel = frame.energy
-            self?.audioReactiveBands = frame.bands
-        }
-        audioAnalyzer.onStatus = { [weak self] status in
-            self?.audioReactiveStatus = status
         }
         restorePomodoro()
         refreshPower()
@@ -259,7 +246,6 @@ final class IslandState: ObservableObject {
         lyricLookupCompleted = false
         publishLyrics(at: Date())
         updateLyricTicker()
-        syncAudioReactiveVisualizer()
         onMusicRefreshPolicyChanged?()
     }
 
@@ -295,7 +281,6 @@ final class IslandState: ObservableObject {
         recordIncomingPosition(playback.elapsed, at: now, isSameTrack: isSameTrack)
         updatePlaybackTicker()
         updateLyricTicker()
-        syncAudioReactiveVisualizer()
         onMusicRefreshPolicyChanged?()
 
         guard !isSameTrack else { return }
@@ -680,16 +665,6 @@ final class IslandState: ObservableObject {
         return entries.isEmpty ? nil : "下次提醒 · " + entries.joined(separator: "  ")
     }
 
-    func syncAudioReactiveVisualizer() {
-        guard settings.musicVisualizerStyle.supportsAudioReactiveMode,
-              settings.audioReactiveVisualizerEnabled,
-              hasMusic,
-              isPlaying else {
-            audioAnalyzer.stop()
-            return
-        }
-        audioAnalyzer.start()
-    }
 }
 
 /// Coalesces timer-driven music refreshes so a non-cooperative AppleScript
