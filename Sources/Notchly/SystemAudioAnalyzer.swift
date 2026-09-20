@@ -4,12 +4,19 @@ import CoreMedia
 import Foundation
 import ScreenCaptureKit
 
+struct AudioReactiveFrame: Sendable, Equatable {
+    let energy: Double
+    let bands: [Double]
+
+    static let silence = AudioReactiveFrame(energy: 0, bands: Array(repeating: 0, count: 8))
+}
+
 /// Captures only the system audio stream when the user explicitly enables the
 /// reactive visualizer. No screen output is registered, and audio samples are
 /// reduced immediately to a tiny transient energy value on this device.
 @MainActor
 final class SystemAudioAnalyzer: NSObject {
-    var onLevel: (@MainActor (Double) -> Void)?
+    var onFrame: (@MainActor (AudioReactiveFrame) -> Void)?
     var onStatus: (@MainActor (String?) -> Void)?
 
     private var stream: SCStream?
@@ -110,7 +117,7 @@ final class SystemAudioAnalyzer: NSObject {
         stream = nil
         hasReceivedAudio = false
         meter.reset()
-        onLevel?(0)
+        onFrame?(.silence)
         onStatus?(nil)
         guard let activeStream else { return }
         Task { try? await activeStream.stopCapture() }
@@ -121,16 +128,16 @@ final class SystemAudioAnalyzer: NSObject {
         startTask = nil
         hasReceivedAudio = false
         meter.reset()
-        onLevel?(0)
+        onFrame?(.silence)
         onStatus?("系统音频连接已中断；播放时会自动重试")
     }
 
-    private func receiveAudioLevel(_ level: Double) {
+    private func receiveAudioFrame(_ frame: AudioReactiveFrame) {
         if !hasReceivedAudio {
             hasReceivedAudio = true
             onStatus?("正在根据系统音频律动")
         }
-        onLevel?(level)
+        onFrame?(frame)
     }
 }
 
@@ -141,9 +148,9 @@ extension SystemAudioAnalyzer: SCStreamOutput {
         of outputType: SCStreamOutputType
     ) {
         guard outputType == .audio,
-              let level = meter.ingest(sampleBuffer: sampleBuffer) else { return }
+              let frame = meter.ingest(sampleBuffer: sampleBuffer) else { return }
         Task { @MainActor [weak self] in
-            self?.receiveAudioLevel(level)
+            self?.receiveAudioFrame(frame)
         }
     }
 }
@@ -183,7 +190,7 @@ private final class AudioEnergyMeter: @unchecked Sendable {
         lastEmission = 0
     }
 
-    func ingest(sampleBuffer: CMSampleBuffer) -> Double? {
+    func ingest(sampleBuffer: CMSampleBuffer) -> AudioReactiveFrame? {
         let rawLevel = Self.energy(from: sampleBuffer)
         // Keep a quick and a slow envelope. Their difference is a true local
         // transient from the captured audio (kick, snare or accent), not a
@@ -206,7 +213,89 @@ private final class AudioEnergyMeter: @unchecked Sendable {
         lastEmission = now
         let emittedPeak = peakSinceLastEmission
         peakSinceLastEmission *= 0.22
-        return emittedPeak
+        return AudioReactiveFrame(
+            energy: emittedPeak,
+            bands: Self.frequencyBands(from: sampleBuffer)
+        )
+    }
+
+    /// A compact Goertzel bank measures eight musically useful regions from
+    /// the real PCM buffer. It is much cheaper than retaining audio or running
+    /// a large FFT, yet gives the renderer independent bass/mid/treble bars.
+    private static func frequencyBands(from sampleBuffer: CMSampleBuffer) -> [Double] {
+        guard let format = CMSampleBufferGetFormatDescription(sampleBuffer),
+              let description = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee,
+              description.mFormatID == kAudioFormatLinearPCM,
+              description.mBitsPerChannel == 32,
+              description.mFormatFlags & kAudioFormatFlagIsFloat != 0,
+              description.mSampleRate > 0 else { return [] }
+
+        var neededBytes = 0
+        CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            sampleBuffer,
+            bufferListSizeNeededOut: &neededBytes,
+            bufferListOut: nil,
+            bufferListSize: 0,
+            blockBufferAllocator: nil,
+            blockBufferMemoryAllocator: nil,
+            flags: 0,
+            blockBufferOut: nil
+        )
+        guard neededBytes > 0 else { return [] }
+
+        let rawBufferList = UnsafeMutableRawPointer.allocate(
+            byteCount: neededBytes,
+            alignment: MemoryLayout<AudioBufferList>.alignment
+        )
+        defer { rawBufferList.deallocate() }
+        let bufferList = rawBufferList.assumingMemoryBound(to: AudioBufferList.self)
+        var retainedBlockBuffer: CMBlockBuffer?
+        let status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            sampleBuffer,
+            bufferListSizeNeededOut: nil,
+            bufferListOut: bufferList,
+            bufferListSize: neededBytes,
+            blockBufferAllocator: kCFAllocatorDefault,
+            blockBufferMemoryAllocator: kCFAllocatorDefault,
+            flags: 0,
+            blockBufferOut: &retainedBlockBuffer
+        )
+        guard status == noErr,
+              let firstBuffer = UnsafeMutableAudioBufferListPointer(bufferList).first,
+              let data = firstBuffer.mData else { return [] }
+
+        let values = data.assumingMemoryBound(to: Float.self)
+        let valueCount = Int(firstBuffer.mDataByteSize) / MemoryLayout<Float>.size
+        let channelStride = bufferList.pointee.mNumberBuffers == 1
+            ? max(1, Int(description.mChannelsPerFrame))
+            : 1
+        let frameCount = min(1_024, valueCount / channelStride)
+        guard frameCount >= 96 else { return [] }
+
+        var samples = [Double]()
+        samples.reserveCapacity(frameCount)
+        for frame in 0..<frameCount {
+            samples.append(Double(values[frame * channelStride]))
+        }
+
+        let centers = [70.0, 130, 250, 500, 1_000, 2_000, 4_000, 8_000]
+        return centers.map { frequency in
+            let nyquistSafeFrequency = min(frequency, description.mSampleRate * 0.42)
+            let bin = Int((Double(frameCount) * nyquistSafeFrequency / description.mSampleRate).rounded())
+            let omega = 2 * Double.pi * Double(bin) / Double(frameCount)
+            let coefficient = 2 * cos(omega)
+            var previous = 0.0
+            var previousPrevious = 0.0
+            for (index, sample) in samples.enumerated() {
+                let window = 0.54 - 0.46 * cos(2 * Double.pi * Double(index) / Double(frameCount - 1))
+                let current = sample * window + coefficient * previous - previousPrevious
+                previousPrevious = previous
+                previous = current
+            }
+            let magnitude = sqrt(max(0, previous * previous + previousPrevious * previousPrevious - coefficient * previous * previousPrevious)) / Double(frameCount)
+            let decibels = 20 * log10(max(magnitude, 0.000_01))
+            return min(max((decibels + 58) / 42, 0), 1)
+        }
     }
 
     private static func energy(from sampleBuffer: CMSampleBuffer) -> Double {

@@ -6,6 +6,9 @@ struct MusicVisualizer: View {
     /// `nil` keeps the lightweight simulated animation. A value from 0…1 is
     /// supplied only by the opt-in local system-audio analyzer.
     var audioLevel: Double?
+    /// Independent low-to-high frequency energy from the local audio stream.
+    /// It is used only by the spectrum style; other styles follow the beat.
+    var audioBands: [Double]?
     /// Keeps an enabled real-audio session visually distinct even before the
     /// first sample arrives: quiet means quiet, never a hidden simulated loop.
     var usesAudioReactiveMode = false
@@ -23,7 +26,7 @@ struct MusicVisualizer: View {
                 : nil
             Group {
                 switch style {
-                case .spectrum: spectrum(time: time, level: renderedAudioLevel)
+                case .spectrum: spectrum(time: time, level: renderedAudioLevel, bands: audioBands)
                 case .waveform: waveform(time: time, level: renderedAudioLevel)
                 case .pulse: pulse(time: time, level: renderedAudioLevel)
                 case .halo: halo(time: time, level: renderedAudioLevel)
@@ -33,12 +36,12 @@ struct MusicVisualizer: View {
         .accessibilityHidden(true)
     }
 
-    private func spectrum(time: TimeInterval, level: Double?) -> some View {
+    private func spectrum(time: TimeInterval, level: Double?, bands: [Double]?) -> some View {
         GeometryReader { geometry in
             let count = max(5, Int(geometry.size.width / 5.5))
             HStack(alignment: .center, spacing: 2.5) {
                 ForEach(0..<count, id: \.self) { index in
-                    let wave = spectrumWave(time: time, index: index, level: level)
+                    let wave = spectrumWave(time: time, index: index, count: count, level: level, bands: bands)
                     Capsule(style: .continuous)
                         .fill(tint.gradient)
                         .frame(height: isActive ? 4 + geometry.size.height * 0.74 * wave : 4)
@@ -49,15 +52,28 @@ struct MusicVisualizer: View {
         .animation(.easeOut(duration: 0.22), value: isActive)
     }
 
-    private func spectrumWave(time: TimeInterval, index: Int, level: Double?) -> Double {
+    private func spectrumWave(time: TimeInterval, index: Int, count: Int, level: Double?, bands: [Double]?) -> Double {
         let phase = time * 4.2 + Double(index) * 0.72
         let simulatedWave = (sin(phase) + sin(phase * 0.47 + 1.8) + 2) / 4
         guard let level else { return simulatedWave }
 
-        // Actual system-audio energy controls the overall lift. The per-bar
-        // contour is static so a silent stream cannot resemble a fake loop.
+        if let bands, bands.count >= 2 {
+            let position = Double(index) / Double(max(1, count - 1))
+            let scaled = position * Double(bands.count - 1)
+            let lower = min(bands.count - 1, Int(scaled))
+            let upper = min(bands.count - 1, lower + 1)
+            let blend = scaled - Double(lower)
+            let band = bands[lower] * (1 - blend) + bands[upper] * blend
+            // Real low/mid/high values give every bar its own height. The
+            // beat envelope adds a restrained global lift without flattening
+            // the frequency detail.
+            return min(1, 0.05 + band * 0.76 + level * 0.18)
+        }
+
+        // Keep a varied fallback until the first band frame arrives, but never
+        // use a time-based simulation while real audio mode is enabled.
         let contour = 0.26 + (sin(Double(index) * 1.91 + 0.7) + 1) * 0.24
-        return min(1, 0.06 + level * (0.72 + contour))
+        return min(1, 0.05 + level * contour)
     }
 
     private func waveform(time: TimeInterval, level: Double?) -> some View {

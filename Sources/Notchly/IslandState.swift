@@ -19,6 +19,7 @@ final class IslandState: ObservableObject {
     @Published private(set) var musicElapsed: TimeInterval = 0
     @Published private(set) var musicDuration: TimeInterval = 0
     @Published private(set) var audioReactiveLevel: Double?
+    @Published private(set) var audioReactiveBands: [Double]?
     @Published private(set) var audioReactiveStatus: String?
     @Published private(set) var artworkImage: NSImage?
     @Published private(set) var lyricLines: [TimedLyricLine] = []
@@ -69,10 +70,11 @@ final class IslandState: ObservableObject {
         musicService.onSystemPlaybackChanged = { [weak self] in
             self?.refreshMusic()
         }
-        audioAnalyzer.onLevel = { [weak self] level in
+        audioAnalyzer.onFrame = { [weak self] frame in
             // A zero is meaningful: it represents a quiet moment in the real
             // audio stream. Never turn it into the simulated visualizer.
-            self?.audioReactiveLevel = level
+            self?.audioReactiveLevel = frame.energy
+            self?.audioReactiveBands = frame.bands
         }
         audioAnalyzer.onStatus = { [weak self] status in
             self?.audioReactiveStatus = status

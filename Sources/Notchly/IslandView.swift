@@ -578,6 +578,7 @@ struct IslandView: View {
                 style: settings.musicVisualizerStyle,
                 isActive: state.isPlaying,
                 audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
+                audioBands: settings.audioReactiveVisualizerEnabled ? state.audioReactiveBands : nil,
                 usesAudioReactiveMode: settings.audioReactiveVisualizerEnabled,
                 tint: settings.islandAccentTheme.accent,
                 highlight: settings.islandAccentTheme.highlight
@@ -688,6 +689,7 @@ struct IslandView: View {
                     style: settings.musicVisualizerStyle,
                     isActive: state.isPlaying,
                     audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
+                    audioBands: settings.audioReactiveVisualizerEnabled ? state.audioReactiveBands : nil,
                     usesAudioReactiveMode: settings.audioReactiveVisualizerEnabled,
                     tint: settings.islandAccentTheme.accent,
                     highlight: settings.islandAccentTheme.highlight
