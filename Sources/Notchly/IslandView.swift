@@ -45,6 +45,9 @@ struct IslandView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.easeInOut(duration: 0.45), value: settings.showsWelcome)
+        .onChange(of: showsPocket) { _, _ in updatePopoverRetention() }
+        .onChange(of: showsCalendarDetails) { _, _ in updatePopoverRetention() }
+        .onDisappear { state.setIslandPopoverPresented(false) }
     }
 
     private var musicContent: some View {
@@ -71,7 +74,7 @@ struct IslandView: View {
                                 .font(.headline)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.76)
-                            Text(state.musicArtist)
+                            artistAndAlbum
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -84,7 +87,6 @@ struct IslandView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        quickActionsMenu
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
@@ -226,7 +228,7 @@ struct IslandView: View {
             HStack(spacing: 7) {
                 Image(systemName: isPocketDropTarget ? "tray.and.arrow.down.fill" : (pocket.items.isEmpty ? "tray" : "tray.full"))
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(isPocketDropTarget ? .white : .purple)
+                    .foregroundStyle(isPocketDropTarget ? .white : settings.islandAccentTheme.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(isPocketDropTarget ? "松手暂存文件" : "文件暂存")
                         .font(.caption.weight(.semibold))
@@ -244,10 +246,10 @@ struct IslandView: View {
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
-        .background(isPocketDropTarget ? .purple.opacity(0.48) : .white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(isPocketDropTarget ? settings.islandAccentTheme.accent.opacity(0.48) : .white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(isPocketDropTarget ? .purple.opacity(0.9) : .white.opacity(0.055), lineWidth: isPocketDropTarget ? 1 : 0.5)
+                .stroke(isPocketDropTarget ? settings.islandAccentTheme.accent.opacity(0.9) : .white.opacity(0.055), lineWidth: isPocketDropTarget ? 1 : 0.5)
         }
         .onDrop(of: [UTType.fileURL], isTargeted: $isPocketDropTarget, perform: receivePocketDrop)
         .help(pocket.items.isEmpty ? "将文件拖放到此处暂存" : "临时文件托盘 · \(pocket.items.count) 项")
@@ -271,6 +273,15 @@ struct IslandView: View {
             }
         }
         return accepted
+    }
+
+    private func updatePopoverRetention() {
+        state.setIslandPopoverPresented(showsPocket || showsCalendarDetails)
+    }
+
+    private var artistAndAlbum: Text {
+        guard !state.musicAlbum.isEmpty else { return Text(state.musicArtist) }
+        return Text(state.musicArtist) + Text("  ·  ") + Text(state.musicAlbum)
     }
 
     private var firstLaunchWelcome: some View {
@@ -533,7 +544,8 @@ struct IslandView: View {
                 style: settings.musicVisualizerStyle,
                 isActive: state.isPlaying,
                 audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
-                tint: .purple
+                tint: settings.islandAccentTheme.accent,
+                highlight: settings.islandAccentTheme.highlight
             )
             .frame(height: 16)
         } else {
@@ -547,14 +559,14 @@ struct IslandView: View {
                 HStack {
                     Image(systemName: "music.note")
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(.purple.opacity(0.78))
+                        .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.78))
                     Spacer(minLength: 0)
                 }
             } else {
                 HStack(spacing: 5) {
                     Image(systemName: "quote.opening")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(settings.islandAccentTheme.accent)
                     Text(state.currentLyricText)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.primary)
@@ -580,14 +592,14 @@ struct IslandView: View {
                         .transition(.opacity)
                     Image(systemName: "quote.closing")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.purple.opacity(0.72))
+                        .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.72))
                 }
             } else if !state.currentLyricText.isEmpty {
                 HStack {
                     Spacer()
                     Image(systemName: "quote.closing")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.purple.opacity(0.72))
+                        .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.72))
                 }
             }
         }
@@ -609,7 +621,8 @@ struct IslandView: View {
                     style: settings.musicVisualizerStyle,
                     isActive: state.isPlaying,
                     audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
-                    tint: .purple
+                    tint: settings.islandAccentTheme.accent,
+                    highlight: settings.islandAccentTheme.highlight
                 )
                 .frame(width: 78, height: 78)
             }
@@ -621,7 +634,7 @@ struct IslandView: View {
                         .scaledToFill()
                 } else {
                     LinearGradient(
-                        colors: [.indigo, .purple, .pink.opacity(0.82)],
+                        colors: settings.islandAccentTheme.artworkColors,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -635,7 +648,7 @@ struct IslandView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .frame(width: 78, height: 78)
-        .shadow(color: .purple.opacity(state.isPlaying ? 0.28 : 0.12), radius: 20, y: 7)
+        .shadow(color: settings.islandAccentTheme.accent.opacity(state.isPlaying ? 0.28 : 0.12), radius: 20, y: 7)
     }
 
     private var musicTopBand: some View {
@@ -644,13 +657,7 @@ struct IslandView: View {
                 .lineLimit(1)
                 .foregroundStyle(.secondary)
             Spacer(minLength: max(42, notchWidth - 44))
-            if !state.musicAlbum.isEmpty {
-                Label(state.musicAlbum, systemImage: "opticaldisc")
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 172, alignment: .trailing)
-                    .foregroundStyle(.tertiary)
-            }
+            quickActionsMenu
         }
         .font(.caption2.weight(.medium))
         .padding(.horizontal, 64)
@@ -829,6 +836,17 @@ struct SettingsView: View {
                     Toggle("", isOn: $settings.audioReactiveVisualizerEnabled)
                         .labelsHidden()
                 }
+            }
+
+            SettingsCard(title: "主题色", icon: "paintpalette") {
+                Picker("主题色", selection: $settings.islandAccentTheme) {
+                    ForEach(IslandAccentTheme.allCases) { theme in
+                        Text(theme.title).tag(theme)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text("影响灵动岛的频谱、歌词标记、封面光晕和文件托盘；默认使用当前的霓虹紫。")
+                    .settingsHint()
             }
 
             SettingsCard(title: "展开信息", icon: "rectangle.3.group") {

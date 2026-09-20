@@ -19,6 +19,51 @@ enum MusicVisualizerStyle: String, CaseIterable, Identifiable {
     }
 }
 
+enum IslandAccentTheme: String, CaseIterable, Identifiable {
+    case violet
+    case ocean
+    case sunset
+    case forest
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .violet: "霓虹紫"
+        case .ocean: "深海蓝"
+        case .sunset: "日落橙"
+        case .forest: "森林绿"
+        }
+    }
+
+    var accent: Color {
+        switch self {
+        case .violet: .purple
+        case .ocean: .cyan
+        case .sunset: .orange
+        case .forest: .green
+        }
+    }
+
+    var highlight: Color {
+        switch self {
+        case .violet: .pink
+        case .ocean: .mint
+        case .sunset: .pink
+        case .forest: .mint
+        }
+    }
+
+    var artworkColors: [Color] {
+        switch self {
+        case .violet: [.indigo, .purple, .pink.opacity(0.82)]
+        case .ocean: [.blue, .cyan, .mint.opacity(0.82)]
+        case .sunset: [.red, .orange, .pink.opacity(0.82)]
+        case .forest: [.teal, .green, .mint.opacity(0.82)]
+        }
+    }
+}
+
 enum DesktopLyricsTheme: String, CaseIterable, Identifiable {
     case white
     case violet
@@ -58,6 +103,9 @@ final class AppSettings: ObservableObject {
     }
     @Published var musicVisualizerStyle: MusicVisualizerStyle {
         didSet { UserDefaults.standard.set(musicVisualizerStyle.rawValue, forKey: "music.visualizer") }
+    }
+    @Published var islandAccentTheme: IslandAccentTheme {
+        didSet { UserDefaults.standard.set(islandAccentTheme.rawValue, forKey: "island.accentTheme") }
     }
     @Published var audioReactiveVisualizerEnabled: Bool {
         didSet {
@@ -102,6 +150,9 @@ final class AppSettings: ObservableObject {
         musicVisualizerStyle = MusicVisualizerStyle(
             rawValue: defaults.string(forKey: "music.visualizer") ?? ""
         ) ?? .spectrum
+        islandAccentTheme = IslandAccentTheme(
+            rawValue: defaults.string(forKey: "island.accentTheme") ?? ""
+        ) ?? .violet
         audioReactiveVisualizerEnabled = defaults.bool(forKey: "music.audioReactiveVisualizer")
         lyricOffset = min(max(defaults.object(forKey: "music.lyricOffset") as? Double ?? 0, -3), 3)
         showsDesktopLyrics = defaults.object(forKey: "music.desktopLyrics") as? Bool ?? false

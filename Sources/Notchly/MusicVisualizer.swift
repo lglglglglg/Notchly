@@ -7,6 +7,7 @@ struct MusicVisualizer: View {
     /// supplied only by the opt-in local system-audio analyzer.
     var audioLevel: Double?
     var tint: Color = .purple
+    var highlight: Color = .pink
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isActive)) { timeline in
@@ -70,7 +71,7 @@ struct MusicVisualizer: View {
                 else { path.addLine(to: CGPoint(x: x, y: y)) }
             }
             context.stroke(path, with: .linearGradient(
-                Gradient(colors: [tint.opacity(0.45), tint, .pink.opacity(0.75)]),
+                Gradient(colors: [tint.opacity(0.45), tint, highlight.opacity(0.75)]),
                 startPoint: .zero,
                 endPoint: CGPoint(x: size.width, y: 0)
             ), lineWidth: 2)
@@ -94,7 +95,7 @@ struct MusicVisualizer: View {
         return ZStack {
             Circle()
                 .trim(from: 0.08, to: 0.78)
-                .stroke(AngularGradient(colors: [.clear, tint, .pink, .clear], center: .center),
+                .stroke(AngularGradient(colors: [.clear, tint, highlight, .clear], center: .center),
                         style: StrokeStyle(lineWidth: 2 + amount * 2, lineCap: .round))
                 .rotationEffect(.degrees(isActive ? time * 26 : 0))
             Circle().fill(tint.opacity(0.07 + amount * 0.18)).padding(5)

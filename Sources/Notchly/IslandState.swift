@@ -35,6 +35,7 @@ final class IslandState: ObservableObject {
     @Published private(set) var calendarTitle = "连接日历后显示下一项"
     @Published private(set) var calendarSubtitle = "你的日程只会保留在这台 Mac 上"
     @Published private(set) var isLoadingCalendar = false
+    @Published private(set) var isIslandPopoverPresented = false
     var onMusicRefreshPolicyChanged: (@MainActor () -> Void)?
 
     private var timer: Timer?
@@ -82,6 +83,10 @@ final class IslandState: ObservableObject {
 
     var timerText: String {
         String(format: "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)
+    }
+
+    func setIslandPopoverPresented(_ isPresented: Bool) {
+        isIslandPopoverPresented = isPresented
     }
 
     private var focusDuration: Int { settings.focusMinutes * 60 }

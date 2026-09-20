@@ -17,6 +17,7 @@ final class IslandController {
     private var pointerInterval: TimeInterval?
     private var collapseTask: Task<Void, Never>?
     private var wasPointerInside = false
+    private var wasHeldOpenByPopover = false
 
     init(state: IslandState) {
         self.state = state
@@ -190,9 +191,24 @@ final class IslandController {
         guard panel.isVisible, let screen = activeScreen else {
             panel.ignoresMouseEvents = true
             wasPointerInside = false
+            wasHeldOpenByPopover = false
             return
         }
         let inside = surfaceFrame(on: screen).contains(NSEvent.mouseLocation)
+        if state.isIslandPopoverPresented {
+            collapseTask?.cancel()
+            panel.ignoresMouseEvents = false
+            wasPointerInside = inside
+            wasHeldOpenByPopover = true
+            return
+        }
+        if wasHeldOpenByPopover {
+            wasHeldOpenByPopover = false
+            panel.ignoresMouseEvents = !inside
+            wasPointerInside = inside
+            hoverChanged(inside)
+            return
+        }
         panel.ignoresMouseEvents = !inside
         guard inside != wasPointerInside else { return }
         wasPointerInside = inside
@@ -251,6 +267,7 @@ final class IslandController {
             Task { @MainActor in
                 guard let self, let screen = self.activeScreen,
                       self.presentation.phase != .compact,
+                      !self.state.isIslandPopoverPresented,
                       !self.surfaceFrame(on: screen).contains(NSEvent.mouseLocation) else { return }
                 self.collapse()
             }

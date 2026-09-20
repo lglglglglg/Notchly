@@ -125,7 +125,7 @@ struct NotchIslandView: View {
                 } else {
                     Image(systemName: "music.note")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(state.settings.islandAccentTheme.accent)
                 }
             }
             .padding(.trailing, 4)
@@ -142,7 +142,8 @@ struct NotchIslandView: View {
                         style: state.settings.musicVisualizerStyle,
                         isActive: state.isPlaying,
                         audioLevel: state.settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
-                        tint: .purple
+                        tint: state.settings.islandAccentTheme.accent,
+                        highlight: state.settings.islandAccentTheme.highlight
                     )
                     .frame(width: 22, height: 14)
                 } else {
@@ -173,7 +174,7 @@ struct NotchIslandView: View {
 
     private func albumPlaceholder(size: CGFloat, radius: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(LinearGradient(colors: [.indigo, .purple, .pink.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .fill(LinearGradient(colors: state.settings.islandAccentTheme.artworkColors, startPoint: .topLeading, endPoint: .bottomTrailing))
             .frame(width: size, height: size)
             .overlay(Image(systemName: "music.note").font(size > 30 ? .title3 : .caption2))
     }
