@@ -13,6 +13,7 @@ final class IslandState: ObservableObject {
     @Published private(set) var musicSource = "Notchly"
     @Published private(set) var hasMusic = false
     @Published private(set) var isPlaying = false
+    @Published private(set) var isPerformingMusicAction = false
     @Published private(set) var musicElapsed: TimeInterval = 0
     @Published private(set) var musicDuration: TimeInterval = 0
     @Published private(set) var artworkImage: NSImage?
@@ -34,6 +35,7 @@ final class IslandState: ObservableObject {
 
     private var timer: Timer?
     private var musicRefreshTask: Task<Void, Never>?
+    private var musicActionTask: Task<Void, Never>?
     private var artworkTask: Task<Void, Never>?
     private var lyricsTask: Task<Void, Never>?
     private var lyricTimer: Timer?
@@ -411,33 +413,42 @@ final class IslandState: ObservableObject {
     }
 
     func toggleMusic() {
-        performMusicAction { try self.musicService.togglePlayback() }
+        performMusicAction { try await self.musicService.togglePlayback() }
     }
 
     func previousMusic() {
-        performMusicAction { try self.musicService.previousTrack() }
+        performMusicAction { try await self.musicService.previousTrack() }
     }
 
     func nextMusic() {
-        performMusicAction { try self.musicService.nextTrack() }
+        performMusicAction { try await self.musicService.nextTrack() }
     }
 
     func openMusicApp() {
         musicService.openActivePlayer()
     }
 
-    private func performMusicAction(_ action: () throws -> Void) {
-        do {
-            try action()
-            Task {
-                try? await Task.sleep(for: .milliseconds(250))
-                refreshMusic()
+    private func performMusicAction(_ action: @escaping () async throws -> Void) {
+        guard musicActionTask == nil else { return }
+        isPerformingMusicAction = true
+        musicActionTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.musicActionTask = nil
+                self.isPerformingMusicAction = false
             }
-        } catch {
-            musicTitle = "请先打开 Spotify 或 Music"
-            musicArtist = "然后播放任意一首歌曲"
-            hasMusic = false
-            isPlaying = false
+            do {
+                try await action()
+                try? await Task.sleep(for: .milliseconds(250))
+                self.refreshMusic()
+            } catch {
+                self.musicTitle = "请先打开 Spotify 或 Music"
+                self.musicArtist = "然后播放任意一首歌曲"
+                self.hasMusic = false
+                self.isPlaying = false
+                self.updateLyricTicker()
+                self.onMusicRefreshPolicyChanged?()
+            }
         }
     }
 

@@ -100,7 +100,7 @@ struct IslandView: View {
 
                     visualizer
 
-                    TimelineView(.periodic(from: .now, by: 0.5)) { timeline in
+                    TimelineView(.animation(minimumInterval: 0.5, paused: !state.isPlaying)) { timeline in
                         let elapsed = state.elapsedTime(at: timeline.date)
                         HStack(spacing: 10) {
                             Text(formatTime(elapsed))
@@ -119,12 +119,18 @@ struct IslandView: View {
                         }
                         Spacer()
                         Button { state.toggleMusic() } label: {
-                            Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.title3)
-                                .frame(width: 30, height: 30)
-                                .background(.white, in: Circle())
-                                .foregroundStyle(.black)
-                                .contentTransition(.symbolEffect(.replace))
+                            Group {
+                                if state.isPerformingMusicAction {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                                        .contentTransition(.symbolEffect(.replace))
+                                }
+                            }
+                            .font(.title3)
+                            .frame(width: 30, height: 30)
+                            .background(.white, in: Circle())
+                            .foregroundStyle(.black)
                         }
                         .buttonStyle(.plain)
                         Spacer()
@@ -134,6 +140,8 @@ struct IslandView: View {
                         Spacer()
                     }
                     .buttonStyle(.plain)
+                    .disabled(state.isPerformingMusicAction)
+                    .opacity(state.isPerformingMusicAction ? 0.72 : 1)
                 }
             }
             .padding(.horizontal, 64)
@@ -352,7 +360,7 @@ struct IslandView: View {
                 Button("在 Finder 中打开") { pocket.reveal() }
                 Spacer()
                 Button("一键清空", role: .destructive) { confirmsPocketClear = true }
-                    .disabled(pocket.items.isEmpty)
+                    .disabled(pocket.items.isEmpty || pocket.isImporting)
             }
         }
         .padding(14)

@@ -57,10 +57,6 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
 
         applySettings(state.settings)
         restorePositionOrUseDefault()
-        pointerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.updatePointerState() }
-        }
-        pointerTimer?.tolerance = 1.0 / 60.0
     }
 
     private func applySettings(_ settings: AppSettings) {
@@ -78,6 +74,7 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
         } else {
             panel.orderOut(nil)
         }
+        updatePointerTracking()
     }
 
     private var preferredScreen: NSScreen? {
@@ -153,6 +150,21 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
         }
         if presentation.isHovering != hovering { presentation.isHovering = hovering }
     }
+
+    private func updatePointerTracking() {
+        guard state.settings.showsDesktopLyrics else {
+            pointerTimer?.invalidate()
+            pointerTimer = nil
+            panel.ignoresMouseEvents = true
+            if presentation.isHovering { presentation.isHovering = false }
+            return
+        }
+        guard pointerTimer == nil else { return }
+        pointerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.updatePointerState() }
+        }
+        pointerTimer?.tolerance = 1.0 / 30.0
+    }
 }
 
 private extension NSRect {
@@ -176,7 +188,10 @@ private struct DesktopLyricsView: View {
                 .fill(backgroundGradient)
 
             VStack(spacing: 2) {
-                TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !state.isPlaying)) { context in
+                TimelineView(.animation(
+                    minimumInterval: 1.0 / 60.0,
+                    paused: !state.isPlaying || !settings.showsDesktopLyrics
+                )) { context in
                     KaraokeLyricText(
                         text: desktopPrimaryText,
                         fontSize: settings.desktopLyricsFontSize,
@@ -223,6 +238,8 @@ private struct DesktopLyricsView: View {
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.9))
+                .disabled(state.isPerformingMusicAction)
+                .opacity(state.isPerformingMusicAction ? 0.72 : 1)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
                 .background(.black.opacity(0.70), in: Capsule())

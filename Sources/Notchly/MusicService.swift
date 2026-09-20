@@ -94,9 +94,9 @@ final class MusicService {
         )
     }
 
-    func togglePlayback() throws { try perform(.toggle) }
-    func previousTrack() throws { try perform(.previous) }
-    func nextTrack() throws { try perform(.next) }
+    func togglePlayback() async throws { try await perform(.toggle) }
+    func previousTrack() async throws { try await perform(.previous) }
+    func nextTrack() async throws { try await perform(.next) }
 
     func openActivePlayer() {
         let provider = activeProvider
@@ -112,7 +112,7 @@ final class MusicService {
         }
     }
 
-    private func perform(_ command: PlayerCommand) throws {
+    private func perform(_ command: PlayerCommand) async throws {
         let provider: PlayerProvider
         if let activeProvider, activeProvider.isRunning {
             provider = activeProvider
@@ -125,7 +125,7 @@ final class MusicService {
         }
 
         if provider.usesAppleScript && provider.isNativeScriptableRunning {
-            _ = try run("tell application \"\(provider.applicationName)\" to \(command.appleScriptCommand)")
+            try await scriptReader.perform(command: command, in: provider.applicationName)
         } else {
             switch command {
             case .toggle: mediaController.togglePlayPause()
@@ -167,32 +167,6 @@ final class MusicService {
         ))
     }
 
-    private func run(_ source: String) throws -> String {
-        var error: NSDictionary?
-        guard let script = NSAppleScript(source: source) else {
-            throw MusicServiceError.script("无法编译播放器自动化脚本")
-        }
-        let result = script.executeAndReturnError(&error)
-        if let error {
-            let message = error[NSAppleScript.errorMessage] as? String ?? "播放器没有返回结果"
-            throw MusicServiceError.script(message)
-        }
-        return result.stringValue ?? ""
-    }
-
-    private func loadAppleMusicArtwork() -> Data? {
-        var error: NSDictionary?
-        let source = """
-        tell application "Music"
-            if (count of artworks of current track) is 0 then return missing value
-            return raw data of artwork 1 of current track
-        end tell
-        """
-        guard let script = NSAppleScript(source: source) else { return nil }
-        let result = script.executeAndReturnError(&error)
-        guard error == nil, result.descriptorType != 0 else { return nil }
-        return result.data
-    }
 }
 
 /// Serializes AppleScript work away from the main actor. A stalled player can
@@ -219,6 +193,19 @@ private final class MusicScriptReader: @unchecked Sendable {
         await withCheckedContinuation { continuation in
             queue.async {
                 continuation.resume(returning: Self.readAppleMusicArtwork())
+            }
+        }
+    }
+
+    func perform(command: PlayerCommand, in applicationName: String) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    _ = try Self.run("tell application \"\(applicationName)\" to \(command.appleScriptCommand)")
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
         }
     }
@@ -279,7 +266,7 @@ private final class MusicScriptReader: @unchecked Sendable {
     }
 }
 
-private enum PlayerCommand {
+private enum PlayerCommand: Sendable {
     case toggle
     case previous
     case next

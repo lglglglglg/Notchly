@@ -9,9 +9,11 @@ final class IslandController {
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private var desktopLyricsObserver: NSObjectProtocol?
-    private var refreshTimer: Timer?
+    private var musicRefreshTimer: Timer?
+    private var powerRefreshTimer: Timer?
     private var pointerTimer: Timer?
-    private var refreshInterval: TimeInterval?
+    private var musicRefreshInterval: TimeInterval?
+    private var powerRefreshInterval: TimeInterval?
     private var pointerInterval: TimeInterval?
     private var collapseTask: Task<Void, Never>?
     private var wasPointerInside = false
@@ -49,17 +51,18 @@ final class IslandController {
         )
         showCompactPanel()
         state.onMusicRefreshPolicyChanged = { [weak self] in
-            self?.updateRefreshSchedule()
+            self?.updateMusicRefreshSchedule()
         }
         desktopLyricsObserver = NotificationCenter.default.addObserver(
             forName: AppSettings.desktopLyricsDidChange,
             object: state.settings,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.updateRefreshSchedule() }
+            Task { @MainActor in self?.updateMusicRefreshSchedule() }
         }
         state.refreshMusic()
-        updateRefreshSchedule()
+        updateMusicRefreshSchedule()
+        updatePowerRefreshSchedule()
         updatePointerTracking()
         // During an app's very first launch NSScreen can briefly be unavailable
         // while the menu-bar-only app finishes activation. Retry once on the
@@ -92,7 +95,8 @@ final class IslandController {
         presentation.phase = .expanded
         panel.orderFrontRegardless()
         installDismissMonitors()
-        updateRefreshSchedule()
+        updateMusicRefreshSchedule()
+        updatePowerRefreshSchedule()
         updatePointerTracking()
     }
 
@@ -101,7 +105,8 @@ final class IslandController {
         guard presentation.phase != .compact else { return }
         presentation.phase = .compact
         removeDismissMonitors()
-        updateRefreshSchedule()
+        updateMusicRefreshSchedule()
+        updatePowerRefreshSchedule()
         updatePointerTracking()
 
     }
@@ -204,7 +209,7 @@ final class IslandController {
         )
     }
 
-    private func updateRefreshSchedule() {
+    private func updateMusicRefreshSchedule() {
         let interval: TimeInterval
         if presentation.phase == .expanded || state.isPlaying || state.settings.showsDesktopLyrics {
             interval = 2
@@ -213,16 +218,29 @@ final class IslandController {
         } else {
             interval = 15
         }
-        guard refreshInterval != interval else { return }
-        refreshTimer?.invalidate()
-        refreshInterval = interval
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        guard musicRefreshInterval != interval else { return }
+        musicRefreshTimer?.invalidate()
+        musicRefreshInterval = interval
+        musicRefreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.state.refreshMusic()
-                self?.state.refreshPower()
             }
         }
-        refreshTimer?.tolerance = min(1, interval * 0.15)
+        musicRefreshTimer?.tolerance = min(1, interval * 0.15)
+    }
+
+    private func updatePowerRefreshSchedule() {
+        // Battery state changes slowly and does not need to follow playback
+        // polling. Keep the expanded view fresh without repeatedly hitting
+        // IOKit while a song or desktop lyrics are active.
+        let interval: TimeInterval = presentation.phase == .expanded ? 30 : 60
+        guard powerRefreshInterval != interval else { return }
+        powerRefreshTimer?.invalidate()
+        powerRefreshInterval = interval
+        powerRefreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.state.refreshPower() }
+        }
+        powerRefreshTimer?.tolerance = min(5, interval * 0.2)
     }
 
     private func installDismissMonitors() {

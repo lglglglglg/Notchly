@@ -10,14 +10,31 @@ struct PocketItem: Identifiable, Hashable {
     var name: String { url.lastPathComponent }
 }
 
+private struct PendingPocketImport: Sendable {
+    let source: URL
+    let destination: URL
+    let size: Int64
+    let hasSecurityScope: Bool
+}
+
+private struct PocketImportResult: Sendable {
+    let source: URL
+    let destination: URL
+    let succeeded: Bool
+}
+
 @MainActor
 final class PocketService: ObservableObject {
     @Published private(set) var items: [PocketItem] = []
     @Published private(set) var statusMessage = "拖入文件以临时保存"
+    @Published private(set) var isImporting = false
 
     private let settings: AppSettings
     private let fileManager = FileManager.default
     private let directory: URL
+    private let importQueue = DispatchQueue(label: "com.notchly.pocket.import", qos: .utility)
+    private var pendingImportBytes: Int64 = 0
+    private var reservedDestinationNames: Set<String> = []
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -38,35 +55,98 @@ final class PocketService: ObservableObject {
 
     func importURLs(_ urls: [URL]) {
         cleanExpiredItems()
-        var imported = 0
+        reload()
+        var reservedNames = Set(items.map(\.name))
+        reservedNames.formUnion(reservedDestinationNames)
+        var imports: [PendingPocketImport] = []
+        var rejected = 0
+
         for source in urls {
             let accessed = source.startAccessingSecurityScopedResource()
-            defer { if accessed { source.stopAccessingSecurityScopedResource() } }
-
             let size = allocatedSize(of: source)
+            let plannedBytes = imports.reduce(0) { $0 + $1.size }
             guard PocketStoragePolicy.canStore(
                 incomingBytes: size,
-                usedBytes: usedBytes,
+                usedBytes: usedBytes + pendingImportBytes + plannedBytes,
                 capacityMB: settings.pocketCapacityMB
             ) else {
-                statusMessage = "托盘容量不足，请先清理文件"
+                if accessed { source.stopAccessingSecurityScopedResource() }
+                rejected += 1
                 continue
             }
-            let destination = uniqueDestination(for: source.lastPathComponent)
-            do {
-                try fileManager.copyItem(at: source, to: destination)
-                imported += 1
-                reload()
-            } catch {
-                statusMessage = "无法保存 \(source.lastPathComponent)"
+            let filename = PocketStoragePolicy.uniqueFilename(
+                for: source.lastPathComponent,
+                existingNames: reservedNames
+            )
+            reservedNames.insert(filename)
+            imports.append(PendingPocketImport(
+                source: source,
+                destination: directory.appendingPathComponent(filename),
+                size: size,
+                hasSecurityScope: accessed
+            ))
+        }
+
+        guard !imports.isEmpty else {
+            statusMessage = rejected > 0 ? "托盘容量不足，请先清理文件" : "没有可暂存的文件"
+            return
+        }
+        pendingImportBytes += imports.reduce(0) { $0 + $1.size }
+        reservedDestinationNames.formUnion(imports.map { $0.destination.lastPathComponent })
+        isImporting = true
+        statusMessage = "正在暂存 \(imports.count) 个文件…"
+        let pendingImports = imports
+        let rejectionCount = rejected
+
+        importQueue.async { [weak self] in
+            let fileManager = FileManager.default
+            let results = pendingImports.map { request -> PocketImportResult in
+                defer {
+                    if request.hasSecurityScope {
+                        request.source.stopAccessingSecurityScopedResource()
+                    }
+                }
+                do {
+                    try fileManager.copyItem(at: request.source, to: request.destination)
+                    return PocketImportResult(source: request.source, destination: request.destination, succeeded: true)
+                } catch {
+                    return PocketImportResult(source: request.source, destination: request.destination, succeeded: false)
+                }
+            }
+            Task { @MainActor [weak self] in
+                self?.finishImport(pendingImports, results: results, rejected: rejectionCount)
             }
         }
-        if imported > 0 {
+    }
+
+    private func finishImport(
+        _ imports: [PendingPocketImport],
+        results: [PocketImportResult],
+        rejected: Int
+    ) {
+        pendingImportBytes = max(0, pendingImportBytes - imports.reduce(0) { $0 + $1.size })
+        reservedDestinationNames.subtract(imports.map { $0.destination.lastPathComponent })
+        isImporting = !reservedDestinationNames.isEmpty
+        reload()
+        let imported = results.filter(\.succeeded).count
+        let failed = results.count - imported
+        switch (imported, failed, rejected) {
+        case let (imported, 0, 0):
             statusMessage = "已暂存 \(imported) 个文件"
+        case let (imported, _, _) where imported > 0:
+            statusMessage = "已暂存 \(imported) 个文件；\(failed + rejected) 个未保存"
+        case (_, _, let rejected) where rejected > 0:
+            statusMessage = "托盘容量不足，请先清理文件"
+        default:
+            statusMessage = "无法保存 \(results.first?.source.lastPathComponent ?? "文件")"
         }
     }
 
     func clear() {
+        guard !isImporting else {
+            statusMessage = "正在暂存文件，完成后再清空"
+            return
+        }
         for item in items { try? fileManager.removeItem(at: item.url) }
         reload()
         statusMessage = "托盘已清空"
@@ -105,19 +185,6 @@ final class PocketService: ObservableObject {
             )
         }
         .sorted { $0.modifiedAt > $1.modifiedAt }
-    }
-
-    private func uniqueDestination(for filename: String) -> URL {
-        let original = directory.appendingPathComponent(filename)
-        guard fileManager.fileExists(atPath: original.path) else { return original }
-        let existingNames = Set((try? fileManager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ))?.map(\.lastPathComponent) ?? [])
-        return directory.appendingPathComponent(
-            PocketStoragePolicy.uniqueFilename(for: filename, existingNames: existingNames)
-        )
     }
 
     private func allocatedSize(of url: URL) -> Int64 {
