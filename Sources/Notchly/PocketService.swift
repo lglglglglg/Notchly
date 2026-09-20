@@ -49,9 +49,7 @@ final class PocketService: ObservableObject {
     var usedBytes: Int64 { items.reduce(0) { $0 + $1.size } }
 
     var storageSummary: String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return "\(formatter.string(fromByteCount: usedBytes)) / \(settings.pocketCapacityMB) MB"
+        PocketStoragePolicy.storageSummary(usedBytes: usedBytes, capacityMB: settings.pocketCapacityMB)
     }
 
     func importURLs(_ urls: [URL]) {
@@ -219,6 +217,19 @@ final class PocketService: ObservableObject {
 }
 
 enum PocketStoragePolicy {
+    static func storageSummary(usedBytes: Int64, capacityMB: Int) -> String {
+        let displayedUsedBytes = max(0, usedBytes)
+        let usedText: String
+        if displayedUsedBytes == 0 {
+            usedText = "0 KB"
+        } else {
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            usedText = formatter.string(fromByteCount: displayedUsedBytes)
+        }
+        return "\(usedText) / \(max(0, capacityMB)) MB"
+    }
+
     static func canStore(incomingBytes: Int64, usedBytes: Int64, capacityMB: Int) -> Bool {
         guard incomingBytes >= 0, usedBytes >= 0, capacityMB >= 0 else { return false }
         let megabyte: Int64 = 1_024 * 1_024

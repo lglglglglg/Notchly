@@ -71,17 +71,17 @@ struct IslandView: View {
                     HStack(alignment: .top, spacing: 10) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(state.musicTitle)
-                                .font(.headline)
+                                .font(.title3.weight(.semibold))
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.76)
+                                .minimumScaleFactor(0.84)
                             artistAndAlbum
-                                .font(.caption)
+                                .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.76)
+                                .minimumScaleFactor(0.84)
                             if let message = state.musicActionMessage {
                                 Text(message)
-                                    .font(.caption2.weight(.medium))
+                                    .font(.footnote.weight(.medium))
                                     .foregroundColor(.orange)
                                     .lineLimit(1)
                             }
@@ -99,7 +99,7 @@ struct IslandView: View {
                             .tint(.white)
                         Text(state.musicDuration > 0 ? formatTime(state.musicDuration) : "--:--")
                     }
-                    .font(.caption2.monospacedDigit())
+                    .font(.footnote.monospacedDigit())
                     .foregroundStyle(.secondary)
 
                     HStack {
@@ -196,7 +196,7 @@ struct IslandView: View {
                 }
             }
         }
-        .font(.caption.weight(.semibold))
+        .font(.callout.weight(.semibold))
         .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -227,13 +227,13 @@ struct IslandView: View {
         Button { showsPocket.toggle() } label: {
             HStack(spacing: 7) {
                 Image(systemName: isPocketDropTarget ? "tray.and.arrow.down.fill" : (pocket.items.isEmpty ? "tray" : "tray.full"))
-                    .font(.body.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(isPocketDropTarget ? .white : settings.islandAccentTheme.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(isPocketDropTarget ? "松手暂存文件" : "文件暂存")
-                        .font(.caption.weight(.semibold))
+                        .font(.callout.weight(.semibold))
                     Text(pocket.items.isEmpty ? "拖放文件到这里" : "\(pocket.items.count) 项 · \(pocket.storageSummary)")
-                        .font(.caption2)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -558,17 +558,17 @@ struct IslandView: View {
             if state.currentLyricText.isEmpty {
                 HStack {
                     Image(systemName: "music.note")
-                        .font(.caption.weight(.medium))
+                        .font(.callout.weight(.medium))
                         .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.78))
                     Spacer(minLength: 0)
                 }
             } else {
                 HStack(spacing: 5) {
                     Image(systemName: "quote.opening")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(settings.islandAccentTheme.accent)
                     Text(state.currentLyricText)
-                        .font(.caption.weight(.semibold))
+                        .font(.callout.weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                         .id(state.currentLyricText)
@@ -584,21 +584,21 @@ struct IslandView: View {
                 HStack(spacing: 5) {
                     Spacer(minLength: 22)
                     Text(state.nextLyricText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary.opacity(0.72))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary.opacity(0.82))
                         .lineLimit(1)
                         .multilineTextAlignment(.trailing)
                         .id(state.nextLyricText)
                         .transition(.opacity)
                     Image(systemName: "quote.closing")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.72))
                 }
             } else if !state.currentLyricText.isEmpty {
                 HStack {
                     Spacer()
                     Image(systemName: "quote.closing")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.72))
                 }
             }
@@ -606,7 +606,7 @@ struct IslandView: View {
         .animation(.easeInOut(duration: 0.24), value: state.currentLyricText)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .frame(minWidth: 180, maxWidth: .infinity, minHeight: 42, maxHeight: 42, alignment: .leading)
+        .frame(minWidth: 180, maxWidth: .infinity, minHeight: 46, maxHeight: 46, alignment: .leading)
         .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -659,7 +659,7 @@ struct IslandView: View {
             Spacer(minLength: max(42, notchWidth - 44))
             quickActionsMenu
         }
-        .font(.caption2.weight(.medium))
+        .font(.footnote.weight(.semibold))
         .padding(.horizontal, 64)
         .padding(.bottom, 4)
     }

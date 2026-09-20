@@ -28,6 +28,7 @@ final class NotchlyCoreTests: XCTestCase {
     }
 
     func testPocketStoragePolicyAppliesCapacityAndDuplicateRules() {
+        XCTAssertEqual(PocketStoragePolicy.storageSummary(usedBytes: 0, capacityMB: 512), "0 KB / 512 MB")
         XCTAssertTrue(PocketStoragePolicy.canStore(incomingBytes: 128, usedBytes: 512, capacityMB: 1))
         XCTAssertFalse(PocketStoragePolicy.canStore(incomingBytes: 600_000, usedBytes: 512_000, capacityMB: 1))
         XCTAssertFalse(PocketStoragePolicy.canStore(incomingBytes: 1, usedBytes: 1_048_576, capacityMB: 1))
