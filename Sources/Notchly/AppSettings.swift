@@ -19,6 +19,12 @@ enum MusicVisualizerStyle: String, CaseIterable, Identifiable {
     }
 }
 
+enum LyricSyncPolicy {
+    static func adjustedOffset(_ current: Double, by adjustment: Double) -> Double {
+        min(max(current + adjustment, -3), 3)
+    }
+}
+
 enum IslandAccentTheme: String, CaseIterable, Identifiable {
     case violet
     case ocean

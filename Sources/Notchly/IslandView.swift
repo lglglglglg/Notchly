@@ -388,9 +388,11 @@ struct IslandView: View {
                 }
             }
 
-            Text("播放音乐后会自动切换为播放器")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                Text(TimeGreetingPolicy.message(at: context.date))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(.horizontal, 64)
         .padding(.bottom, 7)
@@ -429,6 +431,26 @@ struct IslandView: View {
             } label: {
                 Label("刷新播放状态", systemImage: "arrow.clockwise")
             }
+            if state.hasMusic {
+                Menu {
+                    Button {
+                        adjustLyricOffset(by: -0.5)
+                    } label: {
+                        Label("歌词后退 0.5 秒", systemImage: "backward.end")
+                    }
+                    Button {
+                        adjustLyricOffset(by: 0.5)
+                    } label: {
+                        Label("歌词前进 0.5 秒", systemImage: "forward.end")
+                    }
+                    Divider()
+                    Button("重置歌词校准") {
+                        settings.lyricOffset = 0
+                    }
+                } label: {
+                    Label("歌词校准（\(lyricOffsetLabel)）", systemImage: "metronome")
+                }
+            }
             Button {
                 openSettingsWindow()
             } label: {
@@ -451,6 +473,14 @@ struct IslandView: View {
         }
         .menuStyle(.borderlessButton)
         .help("快捷操作")
+    }
+
+    private var lyricOffsetLabel: String {
+        abs(settings.lyricOffset) < 0.05 ? "0.0 秒" : String(format: "%+.1f 秒", settings.lyricOffset)
+    }
+
+    private func adjustLyricOffset(by adjustment: Double) {
+        settings.lyricOffset = LyricSyncPolicy.adjustedOffset(settings.lyricOffset, by: adjustment)
     }
 
     private var pocketPopover: some View {

@@ -23,6 +23,7 @@
 		45F85217DAE05AABB1749C9E /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = D95986F6258761F5278865B6 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4EB6DDFDF6B020D0012079BE /* DesktopLyricsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED28993ABB668C95EA2CED8 /* DesktopLyricsController.swift */; };
 		67EA56B6DCE04500294C7C6F /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36B9A3DAD287C5AA4D7915D /* AppSettings.swift */; };
+		7FFCFDD0D7FBD7735AC3B4C6 /* TimeGreetingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40DF3D5016A1D54240145F6 /* TimeGreetingPolicy.swift */; };
 		9B342D24D911955DEE44F06E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F7F1219ADBBA1D4AD10792EE /* Assets.xcassets */; };
 		B408C8730B7033062AD89966 /* MusicVisualizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5349B9D8549DCA2E5F2AEE /* MusicVisualizer.swift */; };
 		CBD7A3A17452949AB103051D /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = D95986F6258761F5278865B6 /* MediaRemoteAdapter */; };
@@ -69,6 +70,7 @@
 		8299F506876ED86E487512DA /* MusicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicService.swift; sourceTree = "<group>"; };
 		84F04FA14A04514055C83A14 /* PocketService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocketService.swift; sourceTree = "<group>"; };
 		8EDC1D095A361659934DD979 /* MediaRemoteAdapter */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MediaRemoteAdapter; path = Vendor/MediaRemoteAdapter; sourceTree = SOURCE_ROOT; };
+		A40DF3D5016A1D54240145F6 /* TimeGreetingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeGreetingPolicy.swift; sourceTree = "<group>"; };
 		AE3DF0395A07863E3BE44C6C /* SystemAudioAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioAnalyzer.swift; sourceTree = "<group>"; };
 		BE8252CC094796A27D6B0143 /* IslandController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandController.swift; sourceTree = "<group>"; };
 		D36B9A3DAD287C5AA4D7915D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 				84F04FA14A04514055C83A14 /* PocketService.swift */,
 				60B25DD0CFB285B137D967F9 /* PowerService.swift */,
 				AE3DF0395A07863E3BE44C6C /* SystemAudioAnalyzer.swift */,
+				A40DF3D5016A1D54240145F6 /* TimeGreetingPolicy.swift */,
 			);
 			name = Notchly;
 			path = Sources/Notchly;
@@ -270,6 +273,7 @@
 				30482931BAB54FAF32DB0B35 /* PocketService.swift in Sources */,
 				28D4543CBF28D93608BEBF32 /* PowerService.swift in Sources */,
 				32E3CF7FA39E4B232039F2E6 /* SystemAudioAnalyzer.swift in Sources */,
+				7FFCFDD0D7FBD7735AC3B4C6 /* TimeGreetingPolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -298,7 +302,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Notchly/Notchly.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 54;
+				CURRENT_PROJECT_VERSION = 55;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Notchly/Info.plist;
@@ -306,7 +310,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.12.5;
+				MARKETING_VERSION = 0.13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.notchly.app;
 				PRODUCT_NAME = Notchly;
 				SDKROOT = macosx;
@@ -475,7 +479,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Notchly/Notchly.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 54;
+				CURRENT_PROJECT_VERSION = 55;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Notchly/Info.plist;
@@ -483,7 +487,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.12.5;
+				MARKETING_VERSION = 0.13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.notchly.app;
 				PRODUCT_NAME = Notchly;
 				SDKROOT = macosx;

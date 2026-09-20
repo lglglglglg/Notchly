@@ -113,6 +113,20 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertEqual(LyricsCachePolicy.lifetime(hasLyrics: true), 6 * 60 * 60)
     }
 
+    func testLyricSyncCalibrationUsesHalfSecondStepsAndStaysBounded() {
+        XCTAssertEqual(LyricSyncPolicy.adjustedOffset(0, by: 0.5), 0.5)
+        XCTAssertEqual(LyricSyncPolicy.adjustedOffset(2.8, by: 0.5), 3)
+        XCTAssertEqual(LyricSyncPolicy.adjustedOffset(-2.8, by: -0.5), -3)
+    }
+
+    func testTimeGreetingMatchesDayPeriods() {
+        XCTAssertEqual(TimeGreetingPolicy.message(hour: 7), "早上好，新的一天慢慢来。")
+        XCTAssertEqual(TimeGreetingPolicy.message(hour: 10), "上午好，记得喝口水。")
+        XCTAssertEqual(TimeGreetingPolicy.message(hour: 14), "下午好，忙里也要休息片刻。")
+        XCTAssertEqual(TimeGreetingPolicy.message(hour: 20), "晚上好，愿你享受此刻。")
+        XCTAssertEqual(TimeGreetingPolicy.message(hour: 1), "夜深了，早点睡觉。")
+    }
+
     func testMusicRefreshGateCoalescesStalledSnapshots() {
         var gate = MusicRefreshGate()
         XCTAssertTrue(gate.begin())
