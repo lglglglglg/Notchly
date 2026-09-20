@@ -215,11 +215,21 @@ struct IslandView: View {
             }
             Button("重置计时") { state.resetPomodoro() }
         } label: {
-            Label(state.isPomodoroRunning ? state.timerText : "专注", systemImage: "timer")
-                .frame(maxWidth: .infinity, minHeight: 42)
+            HStack(spacing: 7) {
+                Image(systemName: "timer")
+                Text(state.isPomodoroRunning ? state.timerText : "专注")
+                    .monospacedDigit()
+                    // Reserve the same title slot for the idle label and every
+                    // supported timer value, so ticking never shifts its neighbors.
+                    .frame(width: 58, alignment: .leading)
+            }
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .foregroundStyle(.orange)
+        .frame(minWidth: 150, maxWidth: .infinity)
         .help("专注计时")
     }
 
