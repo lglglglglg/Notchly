@@ -11,5 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build the Xcode app
         run: xcodebuild -project Notchly.xcodeproj -scheme Notchly -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Validate the Release configuration
+        run: xcodebuild -project Notchly.xcodeproj -scheme Notchly -configuration Release CODE_SIGNING_ALLOWED=NO build
       - name: Run core logic tests
         run: swift test

@@ -3,6 +3,10 @@ build/
 dist/
 .swiftpm/
 DerivedData/
+*.xcarchive
+*.xcresult
+*.dSYM
+*.dSYM.zip
 .DS_Store
 xcuserdata/
 *.xcuserstate

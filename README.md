@@ -6,6 +6,19 @@
 
 Notchly 采用 **SwiftUI + AppKit**：SwiftUI 负责岛内界面，AppKit 负责菜单栏、无激活悬浮面板、多空间窗口行为与显示器定位。
 
+> 状态：Alpha。支持 macOS 14 及更高版本；当前发行方向为官网 / GitHub Release 的 Developer ID 签名与公证包，尚不适合直接提交 Mac App Store。
+
+## 发布与项目文档
+
+- [隐私说明](PRIVACY.md)：本地数据、系统权限、歌词和封面第三方请求的实际边界。
+- [变更记录](CHANGELOG.md)：下一版的用户可见改动。
+- [贡献规范](CONTRIBUTING.md)：本地验证与提交范围。
+- [实机回归清单](docs/实机回归清单.md)：每个发行包的设备验收。
+- [发布准备清单](docs/发布准备清单.md)：GitHub、Developer ID 公证和 App Store 两条路径的待办事项。
+- [第三方许可](Notchly/THIRD_PARTY_NOTICES.txt)：随应用分发的 `MediaRemoteAdapter` BSD-3-Clause 通知。
+
+仓库许可证尚未选定。在公开发布源代码前，维护者需要明确代码版权归属并选择许可证；未附许可证时，默认版权法并不会授予他人复制、修改或分发源码的权限。
+
 ## 运行
 
 在 Xcode 中打开 `Notchly.xcodeproj`，选择 `Notchly` scheme 后运行。第一次点击日历卡片的蓝色按钮时，macOS 才会请求读取日历的授权。
