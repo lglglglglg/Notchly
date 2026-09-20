@@ -15,7 +15,12 @@ struct MusicVisualizer: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isActive)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
-            let renderedAudioLevel = usesAudioReactiveMode ? (audioLevel ?? 0) : nil
+            // Small visualizers need a slightly eased response curve: a real
+            // low-level passage remains quiet, while ordinary listening volume
+            // still produces a visible, beat-driven lift.
+            let renderedAudioLevel = usesAudioReactiveMode
+                ? min(1, pow(max(audioLevel ?? 0, 0), 0.62) * 1.06)
+                : nil
             Group {
                 switch style {
                 case .spectrum: spectrum(time: time, level: renderedAudioLevel)

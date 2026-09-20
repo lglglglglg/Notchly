@@ -62,7 +62,10 @@ final class SystemAudioAnalyzer: NSObject {
                 configuration.queueDepth = 3
                 configuration.capturesAudio = true
                 configuration.excludesCurrentProcessAudio = true
-                configuration.sampleRate = 44_100
+                // ScreenCaptureKit officially supports 8/16/24/48 kHz. Using
+                // 44.1 kHz relies on a fallback and can leave some output
+                // devices delivering no usable audio samples.
+                configuration.sampleRate = 48_000
                 configuration.channelCount = 2
 
                 let candidate = SCStream(
@@ -83,6 +86,13 @@ final class SystemAudioAnalyzer: NSObject {
                 stream = candidate
                 startTask = nil
                 onStatus?("已连接系统音频，等待播放声音…")
+                Task { [weak self, weak candidate] in
+                    try? await Task.sleep(for: .seconds(2))
+                    guard let self,
+                          self.stream === candidate,
+                          !self.hasReceivedAudio else { return }
+                    self.onStatus?("已连接但未收到音频样本；请确认声音正在从当前 Mac 输出设备播放")
+                }
             } catch {
                 guard generation == expectedGeneration else { return }
                 stream = nil

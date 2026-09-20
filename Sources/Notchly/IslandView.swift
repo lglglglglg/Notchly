@@ -10,6 +10,7 @@ struct IslandView: View {
     @State private var showsPocket = false
     @State private var confirmsPocketClear = false
     @State private var isPocketDropTarget = false
+    @State private var isArtworkHovered = false
     @State private var helloWriteProgress: CGFloat = 0
     @State private var helloControlsVisible = false
     @State private var idleHelloWriteProgress: CGFloat = 0
@@ -63,9 +64,17 @@ struct IslandView: View {
                                 .background(.black.opacity(0.72), in: Circle())
                                 .overlay { Circle().stroke(.white.opacity(0.16), lineWidth: 0.6) }
                         }
+                        .scaleEffect(isArtworkHovered ? 1.045 : 1)
+                        .shadow(
+                            color: settings.islandAccentTheme.accent.opacity(isArtworkHovered ? 0.34 : 0.18),
+                            radius: isArtworkHovered ? 13 : 7,
+                            y: isArtworkHovered ? 5 : 3
+                        )
+                        .animation(.spring(response: 0.22, dampingFraction: 0.72), value: isArtworkHovered)
                 }
                 .buttonStyle(.plain)
                 .help("打开\(state.musicSource)")
+                .onHover { isArtworkHovered = $0 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .top, spacing: 10) {
@@ -643,31 +652,32 @@ struct IslandView: View {
     }
 
     private var lyricCalibrationControls: some View {
-        HStack(spacing: 3) {
-            Button { adjustLyricOffset(by: -0.5) } label: {
-                Text("−0.5")
+        Menu {
+            Text("当前偏移 \(lyricOffsetLabel)")
+            Divider()
+            Button("歌词后退 0.5 秒") { adjustLyricOffset(by: -0.5) }
+            Button("恢复原始同步") { settings.lyricOffset = 0 }
+                .disabled(abs(settings.lyricOffset) < 0.05)
+            Button("歌词前进 0.5 秒") { adjustLyricOffset(by: 0.5) }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "metronome")
+                if abs(settings.lyricOffset) >= 0.05 {
+                    Text(lyricOffsetLabel)
+                        .monospacedDigit()
+                }
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
             }
-            .help("歌词后退 0.5 秒")
-
-            Button {
-                settings.lyricOffset = 0
-            } label: {
-                Label("重置 \(lyricOffsetLabel)", systemImage: "arrow.counterclockwise")
-            }
-            .help("恢复原始歌词同步（0.0 秒）")
-            .foregroundStyle(.secondary)
-
-            Button { adjustLyricOffset(by: 0.5) } label: {
-                Text("+0.5")
-            }
-            .help("歌词前进 0.5 秒")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.86))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 4)
+            .background(.white.opacity(0.045), in: Capsule())
+            .overlay { Capsule().stroke(.white.opacity(0.07), lineWidth: 0.5) }
         }
-        .font(.caption2.monospacedDigit().weight(.semibold))
-        .foregroundStyle(settings.islandAccentTheme.accent)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .background(.white.opacity(0.055), in: Capsule())
-        .overlay { Capsule().stroke(.white.opacity(0.08), lineWidth: 0.5) }
+        .menuStyle(.borderlessButton)
+        .help("歌词校准：前进或后退 0.5 秒")
         .fixedSize()
     }
 
