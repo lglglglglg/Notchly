@@ -169,29 +169,44 @@ private enum SystemAudioAnalyzerError: LocalizedError {
 /// This object is touched only by ScreenCaptureKit's dedicated serial audio
 /// queue. It both smooths incoming RMS values and caps UI updates at 30 Hz.
 private final class AudioEnergyMeter: @unchecked Sendable {
-    private var smoothedLevel = 0.0
-    private var rollingBaseline = 0.0
+    private var fastEnvelope = 0.0
+    private var slowEnvelope = 0.0
+    private var peakSinceLastEmission = 0.0
+    private var hasEnvelopeBaseline = false
     private var lastEmission = 0.0
 
     func reset() {
-        smoothedLevel = 0
-        rollingBaseline = 0
+        fastEnvelope = 0
+        slowEnvelope = 0
+        peakSinceLastEmission = 0
+        hasEnvelopeBaseline = false
         lastEmission = 0
     }
 
     func ingest(sampleBuffer: CMSampleBuffer) -> Double? {
         let rawLevel = Self.energy(from: sampleBuffer)
-        // A slow baseline separates a drum hit/onset from a sustained pad or
-        // vocal. The returned value still follows overall loudness, but gives
-        // transient beats a clearly visible lift instead of a uniform loop.
-        rollingBaseline = rollingBaseline * 0.98 + rawLevel * 0.02
-        let onset = max(0, rawLevel - rollingBaseline - 0.025)
-        let target = min(1, rawLevel * 0.92 + onset * 6.0)
-        smoothedLevel = max(target, smoothedLevel * 0.68)
+        // Keep a quick and a slow envelope. Their difference is a true local
+        // transient from the captured audio (kick, snare or accent), not a
+        // timeline animation. A short peak hold ensures a hit remains visible
+        // at the UI's 30 Hz update rate, then drops rapidly before the next one.
+        if !hasEnvelopeBaseline {
+            fastEnvelope = rawLevel
+            slowEnvelope = rawLevel
+            hasEnvelopeBaseline = true
+        } else {
+            fastEnvelope = fastEnvelope * 0.56 + rawLevel * 0.44
+            slowEnvelope = slowEnvelope * 0.975 + rawLevel * 0.025
+        }
+        let transient = max(0, fastEnvelope - slowEnvelope - 0.006)
+        let sustainedFloor = min(0.16, rawLevel * 0.16)
+        let target = min(1, sustainedFloor + transient * 20)
+        peakSinceLastEmission = max(target, peakSinceLastEmission * 0.54)
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastEmission >= 1.0 / 30.0 else { return nil }
         lastEmission = now
-        return smoothedLevel
+        let emittedPeak = peakSinceLastEmission
+        peakSinceLastEmission *= 0.22
+        return emittedPeak
     }
 
     private static func energy(from sampleBuffer: CMSampleBuffer) -> Double {
