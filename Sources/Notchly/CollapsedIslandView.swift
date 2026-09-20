@@ -96,10 +96,16 @@ struct NotchIslandView: View {
                 if presentation.phase != .expanded { showFull() }
             }
             .contextMenu {
+                Button("刷新播放状态") {
+                    state.refreshMusic()
+                }
                 Button("设置…") {
                     NotificationCenter.default.post(name: .notchlyShowSettingsRequested, object: nil)
                 }
                 Divider()
+                Button("重新启动 Notchly") {
+                    NotificationCenter.default.post(name: .notchlyRestartRequested, object: nil)
+                }
                 Button("退出 Notchly") {
                     NotificationCenter.default.post(name: .notchlyQuitRequested, object: nil)
                 }

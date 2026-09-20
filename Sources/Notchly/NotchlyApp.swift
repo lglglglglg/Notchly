@@ -4,6 +4,7 @@ import SwiftUI
 
 extension Notification.Name {
     static let notchlyShowSettingsRequested = Notification.Name("Notchly.showSettingsRequested")
+    static let notchlyRestartRequested = Notification.Name("Notchly.restartRequested")
     static let notchlyQuitRequested = Notification.Name("Notchly.quitRequested")
 }
 
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusMenu: NSMenu?
     private var hotKey: HotKeyRegistrar?
     private var settingsWindowController: NSWindowController?
+    private var isRestarting = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateOlderInstances()
@@ -57,6 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self,
             selector: #selector(handleQuitRequest(_:)),
             name: .notchlyQuitRequested,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRestartRequest(_:)),
+            name: .notchlyRestartRequested,
             object: nil
         )
         state.syncWellnessReminders()
@@ -179,6 +187,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func handleQuitRequest(_ notification: Notification) {
         NSApp.terminate(nil)
+    }
+
+    @objc private func handleRestartRequest(_ notification: Notification) {
+        guard !isRestarting else { return }
+        isRestarting = true
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
+            DispatchQueue.main.async {
+                self?.isRestarting = false
+                if let error {
+                    NSLog("Notchly could not restart: \(error.localizedDescription)")
+                    return
+                }
+                NSApp.terminate(nil)
+            }
+        }
     }
 
     @objc private func quit() { NSApp.terminate(nil) }

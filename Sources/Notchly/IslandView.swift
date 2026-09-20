@@ -97,8 +97,7 @@ struct IslandView: View {
                         .menuStyle(.borderlessButton)
                         .fixedSize()
                         .help("专注计时")
-                        Button { openSettingsWindow() } label: { Image(systemName: "gearshape") }
-                            .help("打开设置")
+                        quickActionsMenu
                         Button(action: dismiss) { Image(systemName: "chevron.up") }
                             .help("收起")
                     }
@@ -239,8 +238,7 @@ struct IslandView: View {
                 HandwrittenHello(progress: idleHelloWriteProgress, lineWidth: 4.5)
                     .frame(width: 92, height: 34)
                 Spacer()
-                Button { openSettingsWindow() } label: { Image(systemName: "gearshape") }
-                    .buttonStyle(.plain)
+                quickActionsMenu
                 Button(action: dismiss) { Image(systemName: "chevron.up") }
                     .buttonStyle(.plain)
             }
@@ -303,6 +301,37 @@ struct IslandView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private var quickActionsMenu: some View {
+        Menu {
+            Button {
+                state.refreshMusic()
+            } label: {
+                Label("刷新播放状态", systemImage: "arrow.clockwise")
+            }
+            Button {
+                openSettingsWindow()
+            } label: {
+                Label("打开设置…", systemImage: "gearshape")
+            }
+            Divider()
+            Button {
+                NotificationCenter.default.post(name: .notchlyRestartRequested, object: nil)
+            } label: {
+                Label("重新启动 Notchly", systemImage: "arrow.triangle.2.circlepath")
+            }
+            Divider()
+            Button(role: .destructive) {
+                NotificationCenter.default.post(name: .notchlyQuitRequested, object: nil)
+            } label: {
+                Label("退出 Notchly", systemImage: "power")
+            }
+        } label: {
+            Image(systemName: "gearshape")
+        }
+        .menuStyle(.borderlessButton)
+        .help("快捷操作")
     }
 
     private var pocketButton: some View {
