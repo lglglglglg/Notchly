@@ -26,7 +26,7 @@ final class NotchPresentation: ObservableObject {
     var expandedSize: NSSize { NSSize(width: 520, height: 222) }
 
     var expandedContentTopInset: CGFloat {
-        max(54, notchHeight + 14)
+        NotchLayoutPolicy.expandedContentTopInset(notchHeight: notchHeight)
     }
 
     var surfaceSize: NSSize {
@@ -214,7 +214,10 @@ private struct NotchSurface: Shape {
         let progress = min(max(expansionProgress, 0), 1)
         let topInset: CGFloat = 0
         let compactShoulderRadius = min(12, rect.height * 0.38)
-        let expandedShoulderRadius = min(max(54, notchHeight * 1.75), rect.height * 0.28)
+        let expandedShoulderRadius = NotchLayoutPolicy.expandedShoulderRadius(
+            notchHeight: notchHeight,
+            containerHeight: rect.height
+        )
         let shoulderRadius = compactShoulderRadius + (expandedShoulderRadius - compactShoulderRadius) * progress
         let compactBodyInset = min(12, rect.width * 0.055)
         let expandedBodyInset = min(expandedShoulderRadius, rect.width * 0.115)
@@ -257,5 +260,18 @@ private struct NotchSurface: Shape {
         )
         path.closeSubpath()
         return path
+    }
+}
+
+/// Separates the visible shoulder curve from the area reserved for the actual
+/// camera housing. The old layout used the large curve radius as a content
+/// inset, which left an unnecessarily tall empty header above the player.
+enum NotchLayoutPolicy {
+    static func expandedContentTopInset(notchHeight: CGFloat) -> CGFloat {
+        max(36, notchHeight + 4)
+    }
+
+    static func expandedShoulderRadius(notchHeight: CGFloat, containerHeight: CGFloat) -> CGFloat {
+        min(max(42, notchHeight * 1.45), containerHeight * 0.28)
     }
 }

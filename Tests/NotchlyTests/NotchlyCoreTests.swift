@@ -108,6 +108,16 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertFalse(gate.finish())
     }
 
+    func testExpandedNotchLayoutReservesCameraAreaWithoutTallEmptyHeader() {
+        XCTAssertEqual(NotchLayoutPolicy.expandedContentTopInset(notchHeight: 32), 36)
+        XCTAssertEqual(NotchLayoutPolicy.expandedContentTopInset(notchHeight: 48), 52)
+        XCTAssertEqual(
+            NotchLayoutPolicy.expandedShoulderRadius(notchHeight: 32, containerHeight: 222),
+            46.4,
+            accuracy: 0.001
+        )
+    }
+
     @MainActor
     func testFocusTimerRestorationRoundsUpAndStopsAtZero() {
         let now = Date(timeIntervalSinceReferenceDate: 1_000)
