@@ -108,17 +108,14 @@ struct IslandView: View {
 
                     visualizer
 
-                    TimelineView(.animation(minimumInterval: 0.5, paused: !state.isPlaying)) { timeline in
-                        let elapsed = state.elapsedTime(at: timeline.date)
-                        HStack(spacing: 10) {
-                            Text(formatTime(elapsed))
-                            ProgressView(value: elapsed, total: max(1, state.musicDuration))
-                                .tint(.white)
-                            Text(state.musicDuration > 0 ? formatTime(state.musicDuration) : "--:--")
-                        }
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        Text(formatTime(state.musicElapsed))
+                        ProgressView(value: state.musicElapsed, total: max(1, state.musicDuration))
+                            .tint(.white)
+                        Text(state.musicDuration > 0 ? formatTime(state.musicDuration) : "--:--")
                     }
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
 
                     HStack {
                         Spacer()
@@ -152,9 +149,7 @@ struct IslandView: View {
                     .opacity(state.isPerformingMusicAction ? 0.72 : 1)
                 }
             }
-            .padding(.horizontal, 64)
-
-            Spacer(minLength: 0)
+            .padding(.horizontal, 56)
 
             HStack(spacing: 8) {
                 lyricsFooter
@@ -182,7 +177,8 @@ struct IslandView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 64)
+            .padding(.horizontal, 56)
+            .padding(.top, 10)
             .padding(.bottom, 8)
         }
     }

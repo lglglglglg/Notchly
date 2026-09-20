@@ -18,7 +18,7 @@ final class IslandState: ObservableObject {
     @Published private(set) var musicActionMessage: String?
     @Published private(set) var musicElapsed: TimeInterval = 0
     @Published private(set) var musicDuration: TimeInterval = 0
-    @Published private(set) var audioReactiveLevel = 0.0
+    @Published private(set) var audioReactiveLevel: Double?
     @Published private(set) var audioReactiveStatus: String?
     @Published private(set) var artworkImage: NSImage?
     @Published private(set) var lyricLines: [TimedLyricLine] = []
@@ -45,7 +45,10 @@ final class IslandState: ObservableObject {
     private var artworkTask: Task<Void, Never>?
     private var lyricsTask: Task<Void, Never>?
     private var lyricTimer: Timer?
+    private var playbackTimer: Timer?
     private var musicSnapshotDate = Date()
+    private var lastReportedElapsed: TimeInterval?
+    private var lastReportedAdvanceDate: Date?
     private var artworkKey: String?
     private var artworkCache: [URL: ArtworkCacheEntry] = [:]
     private let artworkCacheLifetime: TimeInterval = 60 * 60
@@ -66,7 +69,9 @@ final class IslandState: ObservableObject {
             self?.refreshMusic()
         }
         audioAnalyzer.onLevel = { [weak self] level in
-            self?.audioReactiveLevel = level
+            // A stream that has not delivered usable audio should fall back to
+            // the normal animated visualizer instead of pinning every bar low.
+            self?.audioReactiveLevel = level > 0.015 ? level : nil
         }
         audioAnalyzer.onStatus = { [weak self] status in
             self?.audioReactiveStatus = status
@@ -215,6 +220,8 @@ final class IslandState: ObservableObject {
         lyricsTask?.cancel()
         lyricsTask = nil
         artworkKey = nil
+        lastReportedElapsed = nil
+        lastReportedAdvanceDate = nil
         musicTitle = title
         musicArtist = artist
         musicAlbum = ""
@@ -224,6 +231,7 @@ final class IslandState: ObservableObject {
         musicElapsed = 0
         musicDuration = 0
         musicSnapshotDate = Date()
+        updatePlaybackTicker()
         artworkImage = nil
         lyricLines = []
         isLoadingLyrics = false
@@ -238,6 +246,12 @@ final class IslandState: ObservableObject {
         let newTrackKey = "\(playback.source):\(playback.title):\(playback.artist)"
         let isSameTrack = artworkKey == newTrackKey
         let predictedElapsed = elapsedTime(at: now)
+        let incomingIsStale = isIncomingPositionStale(
+            playback.elapsed,
+            at: now,
+            isSameTrack: isSameTrack,
+            isPlaying: playback.isPlaying
+        )
 
         musicTitle = playback.title
         musicArtist = playback.artist
@@ -252,9 +266,12 @@ final class IslandState: ObservableObject {
             predicted: predictedElapsed,
             isSameTrack: isSameTrack,
             wasPlaying: wasPlaying,
-            isPlaying: playback.isPlaying
+            isPlaying: playback.isPlaying,
+            incomingIsStale: incomingIsStale
         )
         musicSnapshotDate = now
+        recordIncomingPosition(playback.elapsed, at: now, isSameTrack: isSameTrack)
+        updatePlaybackTicker()
         updateLyricTicker()
         syncAudioReactiveVisualizer()
         onMusicRefreshPolicyChanged?()
@@ -313,9 +330,15 @@ final class IslandState: ObservableObject {
         predicted: TimeInterval,
         isSameTrack: Bool,
         wasPlaying: Bool,
-        isPlaying: Bool
+        isPlaying: Bool,
+        incomingIsStale: Bool
     ) -> TimeInterval {
         guard isSameTrack else { return max(0, incoming) }
+
+        // NetEase's system media session can keep publishing one old elapsed
+        // value while playback continues. Treat a report that has not advanced
+        // for several seconds as stale, preserving our monotonic local clock.
+        if incomingIsStale { return max(0, predicted) }
 
         // Some MediaRemote clients repeatedly publish a stale zero elapsed value.
         // Keep the local monotonic clock in that case, while still accepting a
@@ -328,6 +351,60 @@ final class IslandState: ObservableObject {
             return max(0, incoming)
         }
         return max(0, predicted)
+    }
+
+    private func isIncomingPositionStale(
+        _ incoming: TimeInterval,
+        at now: Date,
+        isSameTrack: Bool,
+        isPlaying: Bool
+    ) -> Bool {
+        guard isSameTrack,
+              isPlaying,
+              let previous = lastReportedElapsed,
+              let lastAdvance = lastReportedAdvanceDate,
+              incoming <= previous + 0.12 else { return false }
+        return now.timeIntervalSince(lastAdvance) > 2.5
+    }
+
+    private func recordIncomingPosition(_ incoming: TimeInterval, at now: Date, isSameTrack: Bool) {
+        guard isSameTrack, let previous = lastReportedElapsed else {
+            lastReportedElapsed = incoming
+            lastReportedAdvanceDate = now
+            return
+        }
+        // A clear backwards jump is a user seek, while a forward jump means
+        // the player gave us a fresh position. Both should regain authority.
+        if incoming > previous + 0.12 || incoming < previous - 1 {
+            lastReportedElapsed = incoming
+            lastReportedAdvanceDate = now
+        }
+    }
+
+    private func updatePlaybackTicker() {
+        guard hasMusic, isPlaying else {
+            playbackTimer?.invalidate()
+            playbackTimer = nil
+            return
+        }
+        guard playbackTimer == nil else { return }
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.advancePlaybackClock() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        playbackTimer = timer
+    }
+
+    private func advancePlaybackClock() {
+        guard hasMusic, isPlaying else {
+            updatePlaybackTicker()
+            return
+        }
+        let now = Date()
+        let elapsed = elapsedTime(at: now)
+        guard abs(elapsed - musicElapsed) >= 0.05 else { return }
+        musicElapsed = elapsed
+        musicSnapshotDate = now
     }
 
     private func loadLyrics(for playback: MusicPlayback, key: String) {

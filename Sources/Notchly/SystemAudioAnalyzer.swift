@@ -162,10 +162,10 @@ private final class AudioEnergyMeter: @unchecked Sendable {
         // A slow baseline separates a drum hit/onset from a sustained pad or
         // vocal. The returned value still follows overall loudness, but gives
         // transient beats a clearly visible lift instead of a uniform loop.
-        rollingBaseline = rollingBaseline * 0.965 + rawLevel * 0.035
-        let onset = max(0, rawLevel - rollingBaseline - 0.045)
-        let target = min(1, rawLevel * 0.58 + onset * 4.6)
-        smoothedLevel = max(target, smoothedLevel * 0.74)
+        rollingBaseline = rollingBaseline * 0.98 + rawLevel * 0.02
+        let onset = max(0, rawLevel - rollingBaseline - 0.025)
+        let target = min(1, rawLevel * 0.92 + onset * 6.0)
+        smoothedLevel = max(target, smoothedLevel * 0.68)
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastEmission >= 1.0 / 30.0 else { return nil }
         lastEmission = now

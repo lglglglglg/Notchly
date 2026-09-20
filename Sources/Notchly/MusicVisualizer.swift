@@ -49,7 +49,7 @@ struct MusicVisualizer: View {
         // driver reports zero instead of delivering a useful signal.
         let contour = 0.26 + (sin(Double(index) * 1.91 + 0.7) + 1) * 0.24
         let texture = (sin(phase * 1.8) + sin(phase * 0.63 + 1.1) + 2) / 4
-        return min(1, 0.10 + level * (0.48 + contour) + texture * (0.06 + level * 0.10))
+        return min(1, 0.12 + level * (0.66 + contour) + texture * (0.07 + level * 0.10))
     }
 
     private func waveform(time: TimeInterval, level: Double?) -> some View {
