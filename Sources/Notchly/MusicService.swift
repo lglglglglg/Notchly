@@ -23,6 +23,16 @@ private struct ScriptedPlayback: Sendable {
     let artworkURL: URL?
 }
 
+enum MediaListenerPolicy {
+    static func shouldListen(hasRunningSystemProvider: Bool) -> Bool {
+        hasRunningSystemProvider
+    }
+
+    static func retryDelay(forAttempt attempt: Int) -> TimeInterval {
+        min(30, pow(2, Double(max(0, attempt))))
+    }
+}
+
 @MainActor
 final class MusicService {
     private let separator = "\u{001F}"
@@ -34,6 +44,9 @@ final class MusicService {
     private let mediaController: MediaController
     private let scriptReader = MusicScriptReader()
     private var systemPlayback: (provider: PlayerProvider, playback: MusicPlayback)?
+    private var isListeningToSystemMedia = false
+    private var listenerRestartTask: Task<Void, Never>?
+    private var listenerRestartAttempt = 0
 
     init() {
         mediaController = MediaController()
@@ -42,10 +55,19 @@ final class MusicService {
                 self?.receiveSystemTrack(trackInfo)
             }
         }
-        mediaController.startListening()
+        mediaController.onListenerTerminated = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.scheduleSystemMediaListenerRestart()
+            }
+        }
     }
 
     func snapshot() async throws -> MusicPlayback? {
+        let hasRunningSystemProvider = systemProviders.contains(where: \.isRunning)
+        updateSystemMediaListener(hasRunningSystemProvider: hasRunningSystemProvider)
+        if let systemPlayback, !systemPlayback.provider.isRunning {
+            self.systemPlayback = nil
+        }
         if let systemPlayback, systemPlayback.playback.isPlaying {
             activeProvider = systemPlayback.provider
             return systemPlayback.playback
@@ -57,7 +79,7 @@ final class MusicService {
             separator: separator
         )
 
-        if let systemPlayback, systemPlayback.playback.isPlaying {
+        if let systemPlayback, systemPlayback.provider.isRunning, systemPlayback.playback.isPlaying {
             activeProvider = systemPlayback.provider
             return systemPlayback.playback
         }
@@ -165,6 +187,48 @@ final class MusicService {
             artworkData: artworkData,
             artworkURL: nil
         ))
+        listenerRestartAttempt = 0
+    }
+
+    private func updateSystemMediaListener(hasRunningSystemProvider: Bool) {
+        let shouldListen = MediaListenerPolicy.shouldListen(
+            hasRunningSystemProvider: hasRunningSystemProvider
+        )
+        guard shouldListen != isListeningToSystemMedia else { return }
+        listenerRestartTask?.cancel()
+        listenerRestartTask = nil
+        isListeningToSystemMedia = shouldListen
+        listenerRestartAttempt = 0
+        if shouldListen {
+            startSystemMediaListener()
+        } else {
+            mediaController.stopListening()
+            systemPlayback = nil
+        }
+    }
+
+    private func startSystemMediaListener() {
+        guard isListeningToSystemMedia else { return }
+        mediaController.startListening()
+        mediaController.getTrackInfo { [weak self] trackInfo in
+            Task { @MainActor [weak self] in
+                self?.receiveSystemTrack(trackInfo)
+            }
+        }
+    }
+
+    private func scheduleSystemMediaListenerRestart() {
+        guard isListeningToSystemMedia,
+              systemProviders.contains(where: \.isRunning),
+              listenerRestartTask == nil else { return }
+        let delay = MediaListenerPolicy.retryDelay(forAttempt: listenerRestartAttempt)
+        listenerRestartAttempt += 1
+        listenerRestartTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, let self else { return }
+            self.listenerRestartTask = nil
+            self.startSystemMediaListener()
+        }
     }
 
 }

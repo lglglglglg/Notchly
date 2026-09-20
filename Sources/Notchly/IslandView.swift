@@ -63,9 +63,9 @@ struct IslandView: View {
                                 .font(.headline)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.82)
-                            Text(state.musicSource)
+                            Text(state.musicActionMessage ?? state.musicSource)
                                 .font(.caption2.weight(.medium))
-                                .foregroundStyle(.tertiary)
+                                .foregroundColor(state.musicActionMessage == nil ? .secondary : .orange)
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 8)

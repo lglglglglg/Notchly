@@ -14,6 +14,7 @@ final class IslandState: ObservableObject {
     @Published private(set) var hasMusic = false
     @Published private(set) var isPlaying = false
     @Published private(set) var isPerformingMusicAction = false
+    @Published private(set) var musicActionMessage: String?
     @Published private(set) var musicElapsed: TimeInterval = 0
     @Published private(set) var musicDuration: TimeInterval = 0
     @Published private(set) var artworkImage: NSImage?
@@ -36,6 +37,7 @@ final class IslandState: ObservableObject {
     private var timer: Timer?
     private var musicRefreshTask: Task<Void, Never>?
     private var musicActionTask: Task<Void, Never>?
+    private var clearMusicActionMessageTask: Task<Void, Never>?
     private var artworkTask: Task<Void, Never>?
     private var lyricsTask: Task<Void, Never>?
     private var lyricTimer: Timer?
@@ -431,6 +433,8 @@ final class IslandState: ObservableObject {
     private func performMusicAction(_ action: @escaping () async throws -> Void) {
         guard musicActionTask == nil else { return }
         isPerformingMusicAction = true
+        clearMusicActionMessageTask?.cancel()
+        musicActionMessage = nil
         musicActionTask = Task { [weak self] in
             guard let self else { return }
             defer {
@@ -442,13 +446,26 @@ final class IslandState: ObservableObject {
                 try? await Task.sleep(for: .milliseconds(250))
                 self.refreshMusic()
             } catch {
-                self.musicTitle = "请先打开 Spotify 或 Music"
-                self.musicArtist = "然后播放任意一首歌曲"
-                self.hasMusic = false
-                self.isPlaying = false
-                self.updateLyricTicker()
-                self.onMusicRefreshPolicyChanged?()
+                self.showMusicActionFailure(error)
             }
+        }
+    }
+
+    private func showMusicActionFailure(_ error: Error) {
+        switch error as? MusicServiceError {
+        case .notRunning:
+            musicActionMessage = "未检测到受支持的播放器，请先打开并播放音乐"
+        case .invalidResponse:
+            musicActionMessage = "播放器返回的信息不完整，请稍后重试"
+        case let .script(message):
+            musicActionMessage = "无法控制\(musicSource)：\(message)"
+        case .none:
+            musicActionMessage = "操作未完成，请检查播放器状态后重试"
+        }
+        clearMusicActionMessageTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            self?.musicActionMessage = nil
         }
     }
 

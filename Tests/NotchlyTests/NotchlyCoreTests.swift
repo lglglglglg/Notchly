@@ -51,6 +51,51 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertLessThan(partial, 60)
     }
 
+    func testAdaptiveRefreshPolicyPrioritizesInteractivePlayback() {
+        XCTAssertEqual(
+            IslandRefreshPolicy.musicInterval(
+                isExpanded: false,
+                isPlaying: false,
+                showsDesktopLyrics: false,
+                hasMusic: false
+            ),
+            15
+        )
+        XCTAssertEqual(
+            IslandRefreshPolicy.musicInterval(
+                isExpanded: false,
+                isPlaying: false,
+                showsDesktopLyrics: false,
+                hasMusic: true
+            ),
+            6
+        )
+        XCTAssertEqual(
+            IslandRefreshPolicy.musicInterval(
+                isExpanded: false,
+                isPlaying: true,
+                showsDesktopLyrics: false,
+                hasMusic: true
+            ),
+            2
+        )
+        XCTAssertEqual(IslandRefreshPolicy.powerInterval(isExpanded: false), 60)
+        XCTAssertEqual(IslandRefreshPolicy.powerInterval(isExpanded: true), 30)
+    }
+
+    func testMediaListenerOnlyRunsForSupportedSystemPlayersAndBacksOff() {
+        XCTAssertFalse(MediaListenerPolicy.shouldListen(hasRunningSystemProvider: false))
+        XCTAssertTrue(MediaListenerPolicy.shouldListen(hasRunningSystemProvider: true))
+        XCTAssertEqual(MediaListenerPolicy.retryDelay(forAttempt: 0), 1)
+        XCTAssertEqual(MediaListenerPolicy.retryDelay(forAttempt: 4), 16)
+        XCTAssertEqual(MediaListenerPolicy.retryDelay(forAttempt: 12), 30)
+    }
+
+    func testLyricsCacheKeepsFailuresBriefAndSuccessfulResultsLonger() {
+        XCTAssertEqual(LyricsCachePolicy.lifetime(hasLyrics: false), 5 * 60)
+        XCTAssertEqual(LyricsCachePolicy.lifetime(hasLyrics: true), 6 * 60 * 60)
+    }
+
     @MainActor
     func testFocusTimerRestorationRoundsUpAndStopsAtZero() {
         let now = Date(timeIntervalSinceReferenceDate: 1_000)

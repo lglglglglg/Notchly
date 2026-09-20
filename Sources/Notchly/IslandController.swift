@@ -210,14 +210,12 @@ final class IslandController {
     }
 
     private func updateMusicRefreshSchedule() {
-        let interval: TimeInterval
-        if presentation.phase == .expanded || state.isPlaying || state.settings.showsDesktopLyrics {
-            interval = 2
-        } else if state.hasMusic {
-            interval = 6
-        } else {
-            interval = 15
-        }
+        let interval = IslandRefreshPolicy.musicInterval(
+            isExpanded: presentation.phase == .expanded,
+            isPlaying: state.isPlaying,
+            showsDesktopLyrics: state.settings.showsDesktopLyrics,
+            hasMusic: state.hasMusic
+        )
         guard musicRefreshInterval != interval else { return }
         musicRefreshTimer?.invalidate()
         musicRefreshInterval = interval
@@ -233,7 +231,7 @@ final class IslandController {
         // Battery state changes slowly and does not need to follow playback
         // polling. Keep the expanded view fresh without repeatedly hitting
         // IOKit while a song or desktop lyrics are active.
-        let interval: TimeInterval = presentation.phase == .expanded ? 30 : 60
+        let interval = IslandRefreshPolicy.powerInterval(isExpanded: presentation.phase == .expanded)
         guard powerRefreshInterval != interval else { return }
         powerRefreshTimer?.invalidate()
         powerRefreshInterval = interval
@@ -264,5 +262,21 @@ final class IslandController {
         if let globalEventMonitor { NSEvent.removeMonitor(globalEventMonitor) }
         localEventMonitor = nil
         globalEventMonitor = nil
+    }
+}
+
+enum IslandRefreshPolicy {
+    static func musicInterval(
+        isExpanded: Bool,
+        isPlaying: Bool,
+        showsDesktopLyrics: Bool,
+        hasMusic: Bool
+    ) -> TimeInterval {
+        if isExpanded || isPlaying || showsDesktopLyrics { return 2 }
+        return hasMusic ? 6 : 15
+    }
+
+    static func powerInterval(isExpanded: Bool) -> TimeInterval {
+        isExpanded ? 30 : 60
     }
 }

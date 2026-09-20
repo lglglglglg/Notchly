@@ -7,6 +7,15 @@ struct TimedLyricLine: Identifiable, Hashable, Sendable {
     var id: String { "\(time):\(text)" }
 }
 
+enum LyricsCachePolicy {
+    static let successLifetime: TimeInterval = 6 * 60 * 60
+    static let failureLifetime: TimeInterval = 5 * 60
+
+    static func lifetime(hasLyrics: Bool) -> TimeInterval {
+        hasLyrics ? successLifetime : failureLifetime
+    }
+}
+
 actor LyricsService {
     private struct CacheEntry {
         let lines: [TimedLyricLine]
@@ -14,8 +23,6 @@ actor LyricsService {
     }
 
     private var cache: [String: CacheEntry] = [:]
-    private let successfulCacheLifetime: TimeInterval = 6 * 60 * 60
-    private let failedCacheLifetime: TimeInterval = 5 * 60
     private let cacheLimit = 200
 
     func lyrics(for title: String, artist: String, duration: TimeInterval) async -> [TimedLyricLine] {
@@ -27,12 +34,12 @@ actor LyricsService {
         do {
             let songID = try await searchSongID(title: title, artist: artist, duration: duration)
             let lines = try await fetchLyrics(songID: songID)
-            store(lines, for: key, lifetime: successfulCacheLifetime, now: now)
+            store(lines, for: key, lifetime: LyricsCachePolicy.lifetime(hasLyrics: true), now: now)
             return lines
         } catch {
             // A transient network failure should not suppress retries for the
             // rest of the app session, while still avoiding repeated requests.
-            store([], for: key, lifetime: failedCacheLifetime, now: now)
+            store([], for: key, lifetime: LyricsCachePolicy.lifetime(hasLyrics: false), now: now)
             return []
         }
     }
