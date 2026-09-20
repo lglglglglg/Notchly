@@ -143,7 +143,7 @@ struct IslandView: View {
             HStack(spacing: 8) {
                 if settings.showsPower || settings.showsCalendar {
                     footerSystemControls
-                        .frame(maxWidth: .infinity)
+                        .frame(width: footerSystemControlsWidth)
                 }
                 pocketDropRow
                     .frame(maxWidth: .infinity)
@@ -159,7 +159,8 @@ struct IslandView: View {
             if settings.showsPower {
                 Button { state.refreshPower() } label: {
                     Label(batteryFooterTitle, systemImage: batterySymbol)
-                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .frame(width: 72)
+                        .frame(minHeight: 42)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(batteryTint)
@@ -186,7 +187,8 @@ struct IslandView: View {
                     if showsCalendarDetails { state.connectCalendar() }
                 } label: {
                     Label("日历", systemImage: "calendar")
-                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .frame(width: 54)
+                        .frame(minHeight: 42)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -229,7 +231,7 @@ struct IslandView: View {
         }
         .menuStyle(.borderlessButton)
         .foregroundStyle(.orange)
-        .frame(minWidth: 150, maxWidth: .infinity)
+        .frame(width: 132)
         .help("专注计时")
     }
 
@@ -239,13 +241,9 @@ struct IslandView: View {
                 Image(systemName: isPocketDropTarget ? "tray.and.arrow.down.fill" : (pocket.items.isEmpty ? "tray" : "tray.full"))
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(isPocketDropTarget ? .white : settings.islandAccentTheme.accent)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(isPocketDropTarget ? "松手暂存文件" : "文件暂存")
-                        .font(.callout.weight(.semibold))
-                    Text(pocket.items.isEmpty ? "拖放文件到这里" : "\(pocket.items.count) 项 · \(pocket.storageSummary)")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Text(pocketDropTitle)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.bold))
@@ -266,6 +264,18 @@ struct IslandView: View {
         .popover(isPresented: $showsPocket, arrowEdge: .bottom) {
             pocketPopover
         }
+    }
+
+    private var footerSystemControlsWidth: CGFloat {
+        var width: CGFloat = 132 // focus timer
+        if settings.showsPower { width += 73 } // battery plus divider
+        if settings.showsCalendar { width += 55 } // calendar plus divider
+        return width
+    }
+
+    private var pocketDropTitle: String {
+        if isPocketDropTarget { return "松手暂存" }
+        return pocket.items.isEmpty ? "文件暂存" : "\(pocket.items.count) 项暂存"
     }
 
     private func receivePocketDrop(_ providers: [NSItemProvider]) -> Bool {
