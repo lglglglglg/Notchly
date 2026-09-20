@@ -24,6 +24,8 @@ final class IslandState: ObservableObject {
     @Published private(set) var artworkImage: NSImage?
     @Published private(set) var lyricLines: [TimedLyricLine] = []
     @Published private(set) var isLoadingLyrics = false
+    @Published private(set) var lyricSource: LyricSource?
+    @Published private(set) var lyricLookupCompleted = false
     @Published private(set) var currentLyricText = ""
     @Published private(set) var nextLyricText = ""
     @Published private(set) var currentLyricProgress = 0.0
@@ -85,6 +87,16 @@ final class IslandState: ObservableObject {
 
     var timerText: String {
         String(format: "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)
+    }
+
+    /// Avoid a blank lyric card while preserving the quiet opening seconds of
+    /// songs whose first lyric has not yet arrived.
+    var shouldShowSyncedLyricsUnavailable: Bool {
+        hasMusic
+            && lyricLookupCompleted
+            && lyricLines.isEmpty
+            && !isLoadingLyrics
+            && elapsedTime(at: Date()) >= 12
     }
 
     func setIslandPopoverPresented(_ isPresented: Bool) {
@@ -242,6 +254,8 @@ final class IslandState: ObservableObject {
         artworkImage = nil
         lyricLines = []
         isLoadingLyrics = false
+        lyricSource = nil
+        lyricLookupCompleted = false
         publishLyrics(at: Date())
         updateLyricTicker()
         syncAudioReactiveVisualizer()
@@ -418,15 +432,19 @@ final class IslandState: ObservableObject {
         lyricsTask?.cancel()
         lyricLines = []
         isLoadingLyrics = true
+        lyricSource = nil
+        lyricLookupCompleted = false
         lyricsTask = Task { [weak self] in
             guard let self else { return }
-            let lines = await self.lyricsService.lyrics(
+            let result = await self.lyricsService.lyrics(
                 for: playback.title,
                 artist: playback.artist,
                 duration: playback.duration
             )
             guard !Task.isCancelled, self.artworkKey == key else { return }
-            self.lyricLines = lines
+            self.lyricLines = result.lines
+            self.lyricSource = result.source
+            self.lyricLookupCompleted = true
             self.isLoadingLyrics = false
             self.publishLyrics(at: Date())
             self.updateLyricTicker()

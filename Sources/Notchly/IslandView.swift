@@ -106,6 +106,11 @@ struct IslandView: View {
                         Text(formatTime(state.musicElapsed))
                         ProgressView(value: state.musicElapsed, total: max(1, state.musicDuration))
                             .tint(.white)
+                            // A new song must replace this control instead of
+                            // interpolating the old near-finished value down
+                            // to the new track's opening position.
+                            .id("\(state.musicSource):\(state.musicTitle):\(state.musicArtist)")
+                            .transaction { $0.animation = nil }
                         Text(state.musicDuration > 0 ? formatTime(state.musicDuration) : "--:--")
                     }
                     .font(.footnote.monospacedDigit())
@@ -592,10 +597,16 @@ struct IslandView: View {
     private var lyricsFooter: some View {
         VStack(spacing: 2) {
             if state.currentLyricText.isEmpty {
-                HStack {
+                HStack(spacing: 7) {
                     Image(systemName: "music.note")
                         .font(.callout.weight(.medium))
                         .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.78))
+                    if state.shouldShowSyncedLyricsUnavailable {
+                        Text("暂无同步歌词")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.tertiary)
+                            .help("已依次尝试网易云音乐与 LRCLIB 的同步歌词来源")
+                    }
                     Spacer(minLength: 0)
                 }
             } else {

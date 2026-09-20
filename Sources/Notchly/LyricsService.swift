@@ -23,42 +23,66 @@ enum LyricsCachePolicy {
     }
 }
 
+enum LyricSource: String, Sendable {
+    case netease = "网易云音乐"
+    case lrclib = "LRCLIB"
+}
+
+struct LyricsLookupResult: Sendable {
+    let lines: [TimedLyricLine]
+    let source: LyricSource?
+
+    static let unavailable = LyricsLookupResult(lines: [], source: nil)
+}
+
 actor LyricsService {
     private struct CacheEntry {
-        let lines: [TimedLyricLine]
+        let result: LyricsLookupResult
         let expiresAt: Date
     }
 
     private var cache: [String: CacheEntry] = [:]
     private let cacheLimit = 200
 
-    func lyrics(for title: String, artist: String, duration: TimeInterval) async -> [TimedLyricLine] {
+    /// Retrieves timed lyrics in provider priority order. The public NetEase
+    /// LRC is preferred for a NetEase playback session; LRCLIB is a sequential
+    /// fallback rather than a parallel fan-out, keeping requests small and
+    /// making a provider outage indistinguishable from a missing lyric only
+    /// after both sources have been tried.
+    func lyrics(for title: String, artist: String, duration: TimeInterval) async -> LyricsLookupResult {
         let key = "\(Self.normalized(title))|\(Self.normalized(artist))"
         let now = Date()
-        if let cached = cache[key], cached.expiresAt > now { return cached.lines }
+        if let cached = cache[key], cached.expiresAt > now { return cached.result }
         cache[key] = nil
 
-        do {
-            let songID = try await searchSongID(title: title, artist: artist, duration: duration)
-            let lines = try await fetchLyrics(songID: songID)
-            store(lines, for: key, lifetime: LyricsCachePolicy.lifetime(hasLyrics: true), now: now)
-            return lines
-        } catch {
-            // A transient network failure should not suppress retries for the
-            // rest of the app session, while still avoiding repeated requests.
-            store([], for: key, lifetime: LyricsCachePolicy.lifetime(hasLyrics: false), now: now)
-            return []
+        let result: LyricsLookupResult
+        if let lines = try? await fetchNetEaseLyrics(title: title, artist: artist, duration: duration), !lines.isEmpty {
+            result = LyricsLookupResult(lines: lines, source: .netease)
+        } else if let lines = try? await fetchLRCLibLyrics(title: title, artist: artist, duration: duration), !lines.isEmpty {
+            result = LyricsLookupResult(lines: lines, source: .lrclib)
+        } else {
+            result = .unavailable
         }
+
+        // A transient network failure should not suppress retries for the
+        // rest of the app session, while still avoiding repeated requests.
+        store(result, for: key, lifetime: LyricsCachePolicy.lifetime(hasLyrics: !result.lines.isEmpty), now: now)
+        return result
     }
 
-    private func store(_ lines: [TimedLyricLine], for key: String, lifetime: TimeInterval, now: Date) {
-        cache[key] = CacheEntry(lines: lines, expiresAt: now.addingTimeInterval(lifetime))
+    private func store(_ result: LyricsLookupResult, for key: String, lifetime: TimeInterval, now: Date) {
+        cache[key] = CacheEntry(result: result, expiresAt: now.addingTimeInterval(lifetime))
         guard cache.count > cacheLimit else { return }
         let keysToRemove = cache
             .sorted { $0.value.expiresAt < $1.value.expiresAt }
             .prefix(cache.count - cacheLimit)
             .map(\.key)
         keysToRemove.forEach { cache[$0] = nil }
+    }
+
+    private func fetchNetEaseLyrics(title: String, artist: String, duration: TimeInterval) async throws -> [TimedLyricLine] {
+        let songID = try await searchSongID(title: title, artist: artist, duration: duration)
+        return try await fetchLyrics(songID: songID)
     }
 
     private func searchSongID(title: String, artist: String, duration: TimeInterval) async throws -> Int {
@@ -70,7 +94,7 @@ actor LyricsService {
             URLQueryItem(name: "total", value: "true"),
             URLQueryItem(name: "limit", value: "8")
         ]
-        let data = try await request(components.url!)
+        let data = try await request(components.url!, provider: .netease)
         let response = try JSONDecoder().decode(SearchResponse.self, from: data)
         guard let songs = response.result?.songs, !songs.isEmpty else { throw LyricsError.notFound }
 
@@ -94,7 +118,7 @@ actor LyricsService {
             URLQueryItem(name: "kv", value: "1"),
             URLQueryItem(name: "tv", value: "-1")
         ]
-        let data = try await request(components.url!)
+        let data = try await request(components.url!, provider: .netease)
         let response = try JSONDecoder().decode(LyricResponse.self, from: data)
         guard let source = response.lrc?.lyric else { throw LyricsError.notFound }
         let lines = Self.parseLRC(source)
@@ -102,11 +126,42 @@ actor LyricsService {
         return lines
     }
 
-    private func request(_ url: URL) async throws -> Data {
+    private func fetchLRCLibLyrics(title: String, artist: String, duration: TimeInterval) async throws -> [TimedLyricLine] {
+        var components = URLComponents(string: "https://lrclib.net/api/search")!
+        components.queryItems = [
+            URLQueryItem(name: "track_name", value: title),
+            URLQueryItem(name: "artist_name", value: artist)
+        ]
+        let data = try await request(components.url!, provider: .lrclib)
+        let candidates = try JSONDecoder().decode([LRCLibTrack].self, from: data)
+        let expectedTitle = Self.normalized(title)
+        let expectedArtist = Self.normalized(artist)
+        let best = candidates
+            .filter { !($0.syncedLyrics?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) }
+            .max { lhs, rhs in
+                lrcLibScore(lhs, expectedTitle: expectedTitle, expectedArtist: expectedArtist, duration: duration)
+                    < lrcLibScore(rhs, expectedTitle: expectedTitle, expectedArtist: expectedArtist, duration: duration)
+            }
+        guard let best,
+              lrcLibScore(best, expectedTitle: expectedTitle, expectedArtist: expectedArtist, duration: duration) >= 60,
+              let source = best.syncedLyrics else {
+            throw LyricsError.notFound
+        }
+        let lines = Self.parseLRC(source)
+        guard !lines.isEmpty else { throw LyricsError.notFound }
+        return lines
+    }
+
+    private func request(_ url: URL, provider: LyricSource) async throws -> Data {
         var request = URLRequest(url: url)
         request.timeoutInterval = 12
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X) Notchly/0.6", forHTTPHeaderField: "User-Agent")
-        request.setValue("https://music.163.com/", forHTTPHeaderField: "Referer")
+        switch provider {
+        case .netease:
+            request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X) Notchly/0.13", forHTTPHeaderField: "User-Agent")
+            request.setValue("https://music.163.com/", forHTTPHeaderField: "Referer")
+        case .lrclib:
+            request.setValue("Notchly/0.13 (macOS lyrics companion)", forHTTPHeaderField: "User-Agent")
+        }
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw LyricsError.network
@@ -127,6 +182,22 @@ actor LyricsService {
             expectedArtist: expectedArtist,
             duration: duration,
             candidateDuration: Double(song.duration) / 1_000
+        )
+    }
+
+    private func lrcLibScore(
+        _ track: LRCLibTrack,
+        expectedTitle: String,
+        expectedArtist: String,
+        duration: TimeInterval
+    ) -> Int {
+        Self.matchScore(
+            candidateTitle: track.trackName,
+            candidateArtist: track.artistName,
+            expectedTitle: expectedTitle,
+            expectedArtist: expectedArtist,
+            duration: duration,
+            candidateDuration: track.duration ?? 0
         )
     }
 
@@ -249,6 +320,13 @@ private struct LyricResponse: Decodable {
 
 private struct LyricPayload: Decodable {
     let lyric: String?
+}
+
+private struct LRCLibTrack: Decodable {
+    let trackName: String
+    let artistName: String
+    let duration: TimeInterval?
+    let syncedLyrics: String?
 }
 
 private enum LyricsError: Error {
