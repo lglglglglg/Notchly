@@ -49,6 +49,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(handleAudioReactiveVisualizerChanged(_:)),
+            name: AppSettings.audioReactiveVisualizerDidChange,
+            object: settings
+        )
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(handleQuitRequest(_:)),
             name: .notchlyQuitRequested,
             object: nil
@@ -165,6 +171,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func handleWellnessSettingsChanged(_ notification: Notification) {
         state.syncWellnessReminders()
+    }
+
+    @objc private func handleAudioReactiveVisualizerChanged(_ notification: Notification) {
+        state.syncAudioReactiveVisualizer()
     }
 
     @objc private func handleQuitRequest(_ notification: Notification) {

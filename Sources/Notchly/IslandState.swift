@@ -17,6 +17,8 @@ final class IslandState: ObservableObject {
     @Published private(set) var musicActionMessage: String?
     @Published private(set) var musicElapsed: TimeInterval = 0
     @Published private(set) var musicDuration: TimeInterval = 0
+    @Published private(set) var audioReactiveLevel = 0.0
+    @Published private(set) var audioReactiveStatus: String?
     @Published private(set) var artworkImage: NSImage?
     @Published private(set) var lyricLines: [TimedLyricLine] = []
     @Published private(set) var isLoadingLyrics = false
@@ -50,6 +52,7 @@ final class IslandState: ObservableObject {
     private let calendarService = CalendarService()
     private let notificationService = NotificationService()
     private let musicService = MusicService()
+    private let audioAnalyzer = SystemAudioAnalyzer()
     private let lyricsService = LyricsService()
     private let powerService = PowerService()
     private let timerEndDateKey = "pomodoro.endDate"
@@ -58,6 +61,15 @@ final class IslandState: ObservableObject {
     init(settings: AppSettings) {
         self.settings = settings
         pocket = PocketService(settings: settings)
+        musicService.onSystemPlaybackChanged = { [weak self] in
+            self?.refreshMusic()
+        }
+        audioAnalyzer.onLevel = { [weak self] level in
+            self?.audioReactiveLevel = level
+        }
+        audioAnalyzer.onStatus = { [weak self] status in
+            self?.audioReactiveStatus = status
+        }
         restorePomodoro()
         refreshPower()
     }
@@ -215,6 +227,7 @@ final class IslandState: ObservableObject {
         isLoadingLyrics = false
         publishLyrics(at: Date())
         updateLyricTicker()
+        syncAudioReactiveVisualizer()
         onMusicRefreshPolicyChanged?()
     }
 
@@ -240,6 +253,7 @@ final class IslandState: ObservableObject {
         )
         musicSnapshotDate = now
         updateLyricTicker()
+        syncAudioReactiveVisualizer()
         onMusicRefreshPolicyChanged?()
 
         guard !isSameTrack else { return }
@@ -530,6 +544,14 @@ final class IslandState: ObservableObject {
                 standMinutes: settings.standIntervalMinutes
             )
         }
+    }
+
+    func syncAudioReactiveVisualizer() {
+        guard settings.audioReactiveVisualizerEnabled, hasMusic, isPlaying else {
+            audioAnalyzer.stop()
+            return
+        }
+        audioAnalyzer.start()
     }
 }
 

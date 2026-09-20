@@ -162,7 +162,7 @@ final class PocketService: ObservableObject {
         switch (removed, failed) {
         case (_, 0): statusMessage = "托盘已清空"
         case (0, _): statusMessage = "无法清空托盘，请检查文件权限"
-        default: statusMessage = "已清空 (removed) 个文件；(failed) 个未删除"
+        default: statusMessage = "已清空 \(removed) 个文件；\(failed) 个未删除"
         }
     }
 

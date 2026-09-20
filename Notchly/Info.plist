@@ -13,6 +13,7 @@
     <key>LSUIElement</key><true/>
     <key>NSCalendarsFullAccessUsageDescription</key><string>Notchly 会读取下一场日程，以便在刘海下方显示提醒。</string>
     <key>NSAppleEventsUsageDescription</key><string>Notchly 需要读取和控制 Spotify 或 Music 的播放状态，以便在灵动岛中显示音乐。</string>
+    <key>NSScreenCaptureUsageDescription</key><string>当你主动开启“根据真实节拍律动”时，Notchly 需要读取系统音频能量以驱动本地动画；不会保存、显示或上传屏幕画面或声音。</string>
     <key>NSUserNotificationUsageDescription</key><string>Notchly 会在专注计时结束时发送提醒。</string>
     <key>NSPrefersDisplaySafeAreaCompatibilityMode</key><false/>
 </dict></plist>

@@ -43,6 +43,7 @@ final class AppSettings: ObservableObject {
     static let desktopLyricsDidChange = Notification.Name("Notchly.desktopLyricsDidChange")
     static let desktopLyricsPositionReset = Notification.Name("Notchly.desktopLyricsPositionReset")
     static let wellnessRemindersDidChange = Notification.Name("Notchly.wellnessRemindersDidChange")
+    static let audioReactiveVisualizerDidChange = Notification.Name("Notchly.audioReactiveVisualizerDidChange")
     @Published private(set) var launchesAtLogin: Bool
     @Published private(set) var launchAtLoginMessage: String?
     @Published var showsPomodoro: Bool { didSet { saveCardPreferences() } }
@@ -57,6 +58,12 @@ final class AppSettings: ObservableObject {
     }
     @Published var musicVisualizerStyle: MusicVisualizerStyle {
         didSet { UserDefaults.standard.set(musicVisualizerStyle.rawValue, forKey: "music.visualizer") }
+    }
+    @Published var audioReactiveVisualizerEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(audioReactiveVisualizerEnabled, forKey: "music.audioReactiveVisualizer")
+            NotificationCenter.default.post(name: Self.audioReactiveVisualizerDidChange, object: self)
+        }
     }
     @Published var lyricOffset: Double {
         didSet { UserDefaults.standard.set(lyricOffset, forKey: "music.lyricOffset") }
@@ -95,6 +102,7 @@ final class AppSettings: ObservableObject {
         musicVisualizerStyle = MusicVisualizerStyle(
             rawValue: defaults.string(forKey: "music.visualizer") ?? ""
         ) ?? .spectrum
+        audioReactiveVisualizerEnabled = defaults.bool(forKey: "music.audioReactiveVisualizer")
         lyricOffset = min(max(defaults.object(forKey: "music.lyricOffset") as? Double ?? 0, -3), 3)
         showsDesktopLyrics = defaults.object(forKey: "music.desktopLyrics") as? Bool ?? false
         desktopLyricsShowsNextLine = defaults.object(forKey: "desktopLyrics.nextLine") as? Bool ?? true

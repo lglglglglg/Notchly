@@ -35,6 +35,10 @@ enum MediaListenerPolicy {
 
 @MainActor
 final class MusicService {
+    /// MediaRemote pushes its first update independently of the periodic
+    /// snapshot timer. Forward it immediately so a newly opened supported
+    /// player does not leave the island in its placeholder state.
+    var onSystemPlaybackChanged: (@MainActor () -> Void)?
     private let separator = "\u{001F}"
     private let scriptedProviders: [PlayerProvider] = [.spotify, .music]
     private let systemProviders: [PlayerProvider] = [.netease, .qqMusic, .kugou, .kuwo, .qishui]
@@ -171,6 +175,7 @@ final class MusicService {
                   }
               }) else {
             systemPlayback = nil
+            onSystemPlaybackChanged?()
             return
         }
 
@@ -188,6 +193,7 @@ final class MusicService {
             artworkURL: nil
         ))
         listenerRestartAttempt = 0
+        onSystemPlaybackChanged?()
     }
 
     private func updateSystemMediaListener(hasRunningSystemProvider: Bool) {
@@ -204,6 +210,7 @@ final class MusicService {
         } else {
             mediaController.stopListening()
             systemPlayback = nil
+            onSystemPlaybackChanged?()
         }
     }
 

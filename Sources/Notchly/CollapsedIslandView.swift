@@ -77,7 +77,12 @@ struct NotchIslandView: View {
                             removal: .opacity.animation(.linear(duration: 0.04))
                         ))
                 } else {
-                    IslandView(state: state, safeTop: presentation.expandedContentTopInset, dismiss: collapse)
+                    IslandView(
+                        state: state,
+                        safeTop: presentation.expandedContentTopInset,
+                        notchWidth: presentation.notchWidth,
+                        dismiss: collapse
+                    )
                         .transition(.asymmetric(
                             insertion: .opacity.animation(.easeOut(duration: 0.19).delay(0.11)),
                             removal: .opacity.animation(.linear(duration: 0.05))
@@ -164,6 +169,7 @@ struct NotchIslandView: View {
                     MusicVisualizer(
                         style: state.settings.musicVisualizerStyle,
                         isActive: state.isPlaying,
+                        audioLevel: state.settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
                         tint: .purple
                     )
                     .frame(width: 22, height: 14)

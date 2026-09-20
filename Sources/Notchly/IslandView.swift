@@ -12,19 +12,26 @@ struct IslandView: View {
     @State private var helloControlsVisible = false
     @State private var idleHelloWriteProgress: CGFloat = 0
     let safeTop: CGFloat
+    let notchWidth: CGFloat
     let dismiss: () -> Void
 
-    init(state: IslandState, safeTop: CGFloat, dismiss: @escaping () -> Void) {
+    init(state: IslandState, safeTop: CGFloat, notchWidth: CGFloat, dismiss: @escaping () -> Void) {
         self.state = state
         self.settings = state.settings
         self.pocket = state.pocket
         self.safeTop = safeTop
+        self.notchWidth = notchWidth
         self.dismiss = dismiss
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: safeTop)
+            if state.hasMusic && !settings.showsWelcome {
+                musicTopBand
+                    .frame(height: safeTop, alignment: .bottom)
+            } else {
+                Color.clear.frame(height: safeTop)
+            }
 
             if settings.showsWelcome {
                 firstLaunchWelcome
@@ -63,7 +70,7 @@ struct IslandView: View {
                                 .font(.headline)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.82)
-                            Text(state.musicActionMessage ?? state.musicSource)
+                            Text(state.musicActionMessage ?? "曲目信息已就绪")
                                 .font(.caption2.weight(.medium))
                                 .foregroundColor(state.musicActionMessage == nil ? .secondary : .orange)
                                 .lineLimit(1)
@@ -256,7 +263,7 @@ struct IslandView: View {
                 infoButton(icon: "timer", title: state.isPomodoroRunning ? state.timerText : "专注", tint: .orange) {
                     state.togglePomodoro()
                 }
-                infoButton(icon: pocket.items.isEmpty ? "tray" : "tray.full", title: pocket.items.isEmpty ? "托盘" : "(pocket.items.count) 项", tint: .purple) {
+                infoButton(icon: pocket.items.isEmpty ? "tray" : "tray.full", title: pocket.items.isEmpty ? "托盘" : "\(pocket.items.count) 项", tint: .purple) {
                     showsPocket.toggle()
                 }
                 .popover(isPresented: $showsPocket, arrowEdge: .bottom) {
@@ -306,7 +313,7 @@ struct IslandView: View {
                 .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
-        .help(pocket.items.isEmpty ? "临时文件托盘" : "临时文件托盘 · (pocket.items.count) 项")
+        .help(pocket.items.isEmpty ? "临时文件托盘" : "临时文件托盘 · \(pocket.items.count) 项")
         .popover(isPresented: $showsPocket, arrowEdge: .bottom) {
             pocketPopover
         }
@@ -434,6 +441,7 @@ struct IslandView: View {
             MusicVisualizer(
                 style: settings.musicVisualizerStyle,
                 isActive: state.isPlaying,
+                audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
                 tint: .purple
             )
             .frame(height: 16)
@@ -496,6 +504,9 @@ struct IslandView: View {
 
     private var lyricStatusText: String {
         if !state.hasMusic { return "播放歌曲后将在这里同步歌词" }
+        if settings.audioReactiveVisualizerEnabled, let status = state.audioReactiveStatus {
+            return status
+        }
         if state.isLoadingLyrics { return "正在匹配同步歌词…" }
         if state.isLyricInterlude { return "♪" }
         return "暂未匹配到同步歌词"
@@ -507,6 +518,7 @@ struct IslandView: View {
                 MusicVisualizer(
                     style: settings.musicVisualizerStyle,
                     isActive: state.isPlaying,
+                    audioLevel: settings.audioReactiveVisualizerEnabled ? state.audioReactiveLevel : nil,
                     tint: .purple
                 )
                 .frame(width: 78, height: 78)
@@ -534,6 +546,30 @@ struct IslandView: View {
         }
         .frame(width: 78, height: 78)
         .shadow(color: .purple.opacity(state.isPlaying ? 0.28 : 0.12), radius: 20, y: 7)
+    }
+
+    private var musicTopBand: some View {
+        HStack(spacing: 8) {
+            Label(state.musicSource, systemImage: "music.note")
+                .lineLimit(1)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: max(42, notchWidth - 44))
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(state.isPlaying ? .green : .secondary)
+                    .frame(width: 5, height: 5)
+                Text(state.isPlaying ? "正在播放" : "已暂停")
+                if state.musicDuration > 0 {
+                    Text("剩余 \(formatTime(max(0, state.musicDuration - state.elapsedTime(at: .now))))")
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .lineLimit(1)
+            .foregroundStyle(.secondary)
+        }
+        .font(.caption2.weight(.medium))
+        .padding(.horizontal, 64)
+        .padding(.bottom, 4)
     }
 
     private func formatTime(_ seconds: TimeInterval) -> String {
@@ -700,6 +736,14 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 Text("频谱与波形显示在歌曲信息下方；脉冲与光晕围绕封面显示。")
                     .settingsHint()
+                Divider()
+                SettingLine(
+                    title: "根据真实节拍律动（实验性）",
+                    detail: "仅在播放时本机分析系统音频能量；首次开启会请求“屏幕与系统音频录制”权限，不保存或上传声音。"
+                ) {
+                    Toggle("", isOn: $settings.audioReactiveVisualizerEnabled)
+                        .labelsHidden()
+                }
             }
 
             SettingsCard(title: "展开信息", icon: "rectangle.3.group") {
