@@ -1,6 +1,8 @@
 # Notchly 隐私说明
 
-生效日期：2026-09-20
+生效日期：2026-09-21
+
+版权与维护主体：韩十久工作室（Hanshijiu Studio），主理人 Stephan Li。
 
 Notchly 是本地运行的 macOS 菜单栏应用。本说明描述当前 Alpha 版本实际访问的数据和服务，不以未来功能为承诺。
 
@@ -49,6 +51,6 @@ Notchly 当前没有内置自动更新器。下载发行包时，请仅从项目
 
 ## 联系与变更
 
-本说明随版本更新而调整。请通过项目的 [GitHub Issues](https://github.com/lglglglglg/Notchly/issues) 提交隐私说明更正或一般问题；请勿在公开 issue 中披露敏感数据或安全漏洞细节。
+本说明随版本更新而调整。请通过项目的 [GitHub Issues](https://github.com/lglglglglg/Notchly/issues) 或 `lixiaolongstephan@gmail.com` 提交隐私说明更正或一般问题；请勿在公开 issue 中披露敏感数据或安全漏洞细节。
 
 本说明不是法律意见。面向特定地区、付费业务、未成年人或 Mac App Store 发布前，应由发布主体根据实际数据处理方式完成法律审查。

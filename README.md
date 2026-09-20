@@ -1,5 +1,17 @@
 # Notchly
 
+<p align="center">
+  <b>面向刘海 Mac 的音乐优先型灵动岛</b><br>
+  把正在播放、歌词、专注、日历、电池与文件暂存，收纳到一个轻量的原生 macOS 浮岛中。
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-14.0%2B-blue?logo=apple" alt="macOS 14.0+">
+  <img src="https://img.shields.io/badge/Swift-6.0-orange?logo=swift" alt="Swift 6.0">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
+  <img src="https://img.shields.io/badge/Version-0.13.9-purple" alt="Version 0.13.9">
+</p>
+
 > 长期开发目录：`/Users/macbpforlg/Desktop/AI时代/AI开发/Notchly _ macOS灵动岛`
 
 一个面向带刘海 Mac 的音乐优先型「灵动岛」原型。待机状态与真实摄像头刘海连成一体，在刘海左右显示状态；鼠标首次悬停、点击、菜单栏图标或 `⌘⇧Space` 均会自动展开音乐详情。
@@ -8,6 +20,33 @@ Notchly 采用 **SwiftUI + AppKit**：SwiftUI 负责岛内界面，AppKit 负责
 
 > 状态：Alpha。支持 macOS 14 及更高版本；当前发行方向为官网 / GitHub Release 的 Developer ID 签名与公证包，尚不适合直接提交 Mac App Store。
 
+## 🌟 为什么选择 Notchly？
+
+当音乐播放器、专注计时、日历和临时文件工具同时运行时，窗口之间来回切换会打断节奏。Notchly 将这些状态集中到刘海附近，同时保留真实播放器控制和 macOS 原生交互。
+
+- **音乐优先**：实时读取系统正在播放的歌曲、进度、封面和播放控制。
+- **歌词不空降**：多歌词源自动回退，保留作词、作曲、编曲等开场署名；没有可靠歌词时给出明确状态。
+- **本地优先**：设置、歌词缓存、专注状态和文件暂存都在本机处理；只有歌词和远程封面会按需请求对应服务。
+- **原生体验**：SwiftUI + AppKit、透明悬浮面板、多桌面支持、系统通知与真实刘海定位。
+
+## ✨ 核心特性
+
+### 音乐与歌词
+
+- 支持 Apple Music、Spotify，以及通过 macOS 媒体会话兼容层读取网易云音乐、QQ 音乐、酷狗、酷我和汽水音乐。
+- 进度、当前时间和总时长来自播放器真实状态；对停在 0 秒的媒体会用本地单调时钟平滑续走。
+- 歌词优先匹配网易云公开接口，失败后自动回退到 LRCLIB，并缓存成功结果。
+- 歌词校准支持 ±3 秒；灵动岛和桌面歌词使用同一偏移；没有歌词时不会显示误导性的“测试”或空白控件。
+- 提供频谱、波形、脉冲和宇宙尘埃四种本地模拟动效，不读取系统音频、不请求屏幕录制权限。
+
+### 灵动岛与效率工具
+
+- 鼠标悬停、菜单栏图标、点击或 `⌘⇧Space` 展开，点击外部或 `Esc` 收起。
+- 专注计时、喝水/久坐提醒、日历、电池状态和文件暂存统一对齐展示。
+- 健康提醒支持 5–180 分钟自定义间隔，并可立即发送一条用户可理解的提醒确认权限状态。
+- 独立桌面歌词支持单/双行、KTV 渐变、主题、字号、背景浓度、拖动位置与锁定穿透。
+- 文件托盘支持拖入、Finder 定位、过期清理、容量上限和一键清空。
+
 ## 发布与项目文档
 
 - [隐私说明](PRIVACY.md)：本地数据、系统权限、歌词和封面第三方请求的实际边界。
@@ -15,6 +54,8 @@ Notchly 采用 **SwiftUI + AppKit**：SwiftUI 负责岛内界面，AppKit 负责
 - [贡献规范](CONTRIBUTING.md)：本地验证与提交范围。
 - [实机回归清单](docs/实机回归清单.md)：每个发行包的设备验收。
 - [发布准备清单](docs/发布准备清单.md)：GitHub、Developer ID 公证和 App Store 两条路径的待办事项。
+- [证书与发布说明](docs/证书与发布说明.md)：Developer ID、Hardened Runtime、公证、验签和发布包检查。
+- [安全说明](SECURITY.md)：漏洞报告、敏感信息和证书凭据处理方式。
 - [项目署名与发布信息](docs/项目署名与发布信息.md)：后续项目可复用的工作室、版权、联系与隐私入口约定。
 - [第三方许可](Notchly/THIRD_PARTY_NOTICES.txt)：随应用分发的 `MediaRemoteAdapter` BSD-3-Clause 通知。
 
@@ -26,6 +67,53 @@ Notchly 采用 **SwiftUI + AppKit**：SwiftUI 负责岛内界面，AppKit 负责
 - 公开联系邮箱：lixiaolongstephan@gmail.com
 
 MIT 允许使用、修改、商用和再分发，同时要求保留版权与许可文本。
+
+## 🔒 隐私与系统权限
+
+Notchly 不提供账号、广告、遥测或自建数据收集服务。设置、专注状态、歌词缓存、日历展示和文件托盘均在本机处理。歌词匹配和远程专辑封面是按需发生的第三方网络请求，具体边界见 [隐私说明](PRIVACY.md)。
+
+首次使用对应功能时，macOS 可能请求以下标准权限：
+
+1. **日历**：读取下一场非全天日程，仅用于灵动岛展示。
+2. **自动化（Apple Events）**：读取和控制已运行的 Apple Music 或 Spotify。
+3. **通知**：发送专注、喝水和久坐提醒。
+4. **网络访问**：匹配同步歌词和加载远程专辑封面。
+5. **文件访问**：只处理用户主动拖入文件暂存区域的项目。
+
+Notchly 不读取键盘输入、屏幕画面或系统音频，也不需要屏幕录制权限。权限可随时在“系统设置 → 隐私与安全性”中撤销。
+
+## 🚀 下载与安装
+
+### 预编译版本
+
+前往 [GitHub Releases](https://github.com/lglglglglg/Notchly/releases) 下载与当前版本对应的 ZIP，解压后将 `Notchly.app` 拖入“应用程序”文件夹。公开发行版本应使用 Developer ID Application 签名并完成 Apple 公证；当前 Alpha 包仅用于开发和测试。
+
+### 本地编译
+
+要求：macOS 14.0+、Xcode 15+、Swift 6 工具链和 [XcodeGen](https://github.com/yonaskolb/XcodeGen)。
+
+```bash
+git clone git@github.com:lglglglglg/Notchly.git
+cd Notchly
+xcodegen generate
+./scripts/package-stable.sh
+```
+
+构建产物输出至 `dist/Notchly.app` 与 `dist/Notchly-<版本>-alpha.zip`。脚本默认使用临时 ad-hoc 签名；正式发布请通过 `NOTCHLY_SIGNING_IDENTITY` 指定 Developer ID Application 证书。
+
+## ⌨️ 常用快捷键与操作
+
+| 动作 | 交互方式 |
+| :--- | :--- |
+| **展开 / 收起灵动岛** | 鼠标悬停刘海、点击菜单栏图标或全局快捷键 `⌘⇧Space` |
+| **播放控制** | 上一曲、播放/暂停、下一曲按钮；点击封面返回播放器 |
+| **歌词校准** | 歌词右侧的下拉校准控件，或设置中的时间偏移 |
+| **打开设置** | 展开岛右上角齿轮菜单 |
+| **查看文件暂存** | 将文件拖到“文件暂存”区域，点击入口管理 |
+
+## 🔐 签名、公证与发布
+
+正式发布建议使用 Apple Developer Program 的 **Developer ID Application** 证书、Hardened Runtime 和 Apple notarization。证书私钥、App Store Connect API Key、临时令牌和公证凭据不得提交到仓库或写入脚本。完整命令、证书检查和发布验收见 [证书与发布说明](docs/证书与发布说明.md) 与 [发布准备清单](docs/发布准备清单.md)。
 
 ## 运行
 
