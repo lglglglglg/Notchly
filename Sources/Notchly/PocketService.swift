@@ -38,7 +38,8 @@ final class PocketService: ObservableObject {
 
     init(settings: AppSettings) {
         self.settings = settings
-        let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
         directory = support.appendingPathComponent("Notchly/Pocket", isDirectory: true)
         try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         cleanExpiredItems()
@@ -147,9 +148,22 @@ final class PocketService: ObservableObject {
             statusMessage = "正在暂存文件，完成后再清空"
             return
         }
-        for item in items { try? fileManager.removeItem(at: item.url) }
+        var removed = 0
+        var failed = 0
+        for item in items {
+            do {
+                try fileManager.removeItem(at: item.url)
+                removed += 1
+            } catch {
+                failed += 1
+            }
+        }
         reload()
-        statusMessage = "托盘已清空"
+        switch (removed, failed) {
+        case (_, 0): statusMessage = "托盘已清空"
+        case (0, _): statusMessage = "无法清空托盘，请检查文件权限"
+        default: statusMessage = "已清空 (removed) 个文件；(failed) 个未删除"
+        }
     }
 
     func reveal(_ item: PocketItem? = nil) {

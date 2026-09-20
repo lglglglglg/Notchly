@@ -54,7 +54,6 @@ final class IslandState: ObservableObject {
     private let powerService = PowerService()
     private let timerEndDateKey = "pomodoro.endDate"
     private let remainingSecondsKey = "pomodoro.remainingSeconds"
-    private let musicConnectedKey = "music.connected"
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -172,31 +171,19 @@ final class IslandState: ObservableObject {
                 let playback = try await self.musicService.snapshot()
                 if let playback {
                     self.apply(playback)
-                    UserDefaults.standard.set(true, forKey: self.musicConnectedKey)
                 } else {
-                    self.musicTitle = "播放一首音乐开始"
-                    self.musicArtist = "支持国内主流播放器、Apple Music 与 Spotify"
-                    self.musicSource = "等待播放器"
-                    self.hasMusic = false
-                    self.isPlaying = false
-                    self.musicElapsed = 0
-                    self.musicDuration = 0
-                    self.artworkImage = nil
-                    self.lyricLines = []
-                    self.isLoadingLyrics = false
-                    self.publishLyrics(at: Date())
-                    self.updateLyricTicker()
-                    self.onMusicRefreshPolicyChanged?()
+                    self.clearMusicPresentation(
+                        title: "播放一首音乐开始",
+                        artist: "支持国内主流播放器、Apple Music 与 Spotify",
+                        source: "等待播放器"
+                    )
                 }
             } catch {
-                guard !Task.isCancelled else { return }
-                self.musicTitle = "无法连接播放器"
-                self.musicArtist = "请检查播放器或系统媒体权限"
-                self.musicSource = "Notchly"
-                self.hasMusic = false
-                self.isPlaying = false
-                self.updateLyricTicker()
-                self.onMusicRefreshPolicyChanged?()
+                self.clearMusicPresentation(
+                    title: "无法连接播放器",
+                    artist: "请检查播放器或系统媒体权限",
+                    source: "Notchly"
+                )
             }
         }
     }
@@ -204,6 +191,31 @@ final class IslandState: ObservableObject {
     private func finishMusicRefresh() {
         musicRefreshTask = nil
         if musicRefreshGate.finish() { refreshMusic() }
+    }
+
+    private func clearMusicPresentation(title: String, artist: String, source: String) {
+        // Invalidate work from the previous track as well as its key. Without
+        // this reset, a stopped track that later resumes with the same metadata
+        // can skip both artwork and lyric loading.
+        artworkTask?.cancel()
+        artworkTask = nil
+        lyricsTask?.cancel()
+        lyricsTask = nil
+        artworkKey = nil
+        musicTitle = title
+        musicArtist = artist
+        musicSource = source
+        hasMusic = false
+        isPlaying = false
+        musicElapsed = 0
+        musicDuration = 0
+        musicSnapshotDate = Date()
+        artworkImage = nil
+        lyricLines = []
+        isLoadingLyrics = false
+        publishLyrics(at: Date())
+        updateLyricTicker()
+        onMusicRefreshPolicyChanged?()
     }
 
     private func apply(_ playback: MusicPlayback) {
