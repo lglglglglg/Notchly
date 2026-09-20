@@ -427,31 +427,6 @@ struct IslandView: View {
     private var quickActionsMenu: some View {
         Menu {
             Button {
-                state.refreshMusic()
-            } label: {
-                Label("刷新播放状态", systemImage: "arrow.clockwise")
-            }
-            if state.hasMusic {
-                Menu {
-                    Button {
-                        adjustLyricOffset(by: -0.5)
-                    } label: {
-                        Label("歌词后退 0.5 秒", systemImage: "backward.end")
-                    }
-                    Button {
-                        adjustLyricOffset(by: 0.5)
-                    } label: {
-                        Label("歌词前进 0.5 秒", systemImage: "forward.end")
-                    }
-                    Divider()
-                    Button("重置歌词校准") {
-                        settings.lyricOffset = 0
-                    }
-                } label: {
-                    Label("歌词校准（\(lyricOffsetLabel)）", systemImage: "metronome")
-                }
-            }
-            Button {
                 openSettingsWindow()
             } label: {
                 Label("打开设置…", systemImage: "gearshape")
@@ -611,6 +586,7 @@ struct IslandView: View {
                         .font(.callout.weight(.medium))
                         .foregroundStyle(settings.islandAccentTheme.accent.opacity(0.78))
                     Spacer(minLength: 0)
+                    lyricCalibrationControls
                 }
             } else {
                 HStack(spacing: 5) {
@@ -622,11 +598,13 @@ struct IslandView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                         .id(state.currentLyricText)
+                        .layoutPriority(-1)
                         .transition(.asymmetric(
                             insertion: .move(edge: .bottom).combined(with: .opacity),
                             removal: .move(edge: .top).combined(with: .opacity)
                         ))
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 4)
+                    lyricCalibrationControls
                 }
             }
 
@@ -662,6 +640,31 @@ struct IslandView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(.white.opacity(0.055), lineWidth: 0.5)
         }
+    }
+
+    private var lyricCalibrationControls: some View {
+        HStack(spacing: 3) {
+            Button { adjustLyricOffset(by: -0.5) } label: {
+                Text("−0.5")
+            }
+            .help("歌词后退 0.5 秒")
+
+            Text(lyricOffsetLabel)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 40)
+
+            Button { adjustLyricOffset(by: 0.5) } label: {
+                Text("+0.5")
+            }
+            .help("歌词前进 0.5 秒")
+        }
+        .font(.caption2.monospacedDigit().weight(.semibold))
+        .foregroundStyle(settings.islandAccentTheme.accent)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(.white.opacity(0.055), in: Capsule())
+        .overlay { Capsule().stroke(.white.opacity(0.08), lineWidth: 0.5) }
+        .fixedSize()
     }
 
     private var artwork: some View {
@@ -784,8 +787,8 @@ struct SettingsView: View {
             islandSettings
                 .tabItem { Label("灵动岛", systemImage: "capsule.tophalf.filled") }
 
-            lyricsSettings
-                .tabItem { Label("歌词", systemImage: "quote.bubble") }
+            desktopLyricsSettings
+                .tabItem { Label("桌面歌词", systemImage: "text.bubble") }
 
             aboutSettings
                 .tabItem { Label("关于", systemImage: "info.circle") }
@@ -888,6 +891,21 @@ struct SettingsView: View {
                 }
             }
 
+            SettingsCard(title: "歌词同步", icon: "metronome") {
+                SettingsSliderRow(
+                    title: "时间偏移",
+                    value: $settings.lyricOffset,
+                    range: -3...3,
+                    step: 0.1,
+                    valueText: String(format: "%+.1f 秒", settings.lyricOffset)
+                )
+                HStack {
+                    Text("快捷校准位于播放器歌词右侧；此偏移同时影响灵动岛与桌面歌词。").settingsHint()
+                    Spacer()
+                    Button("重置") { settings.lyricOffset = 0 }
+                }
+            }
+
             SettingsCard(title: "主题色", icon: "paintpalette") {
                 Picker("主题色", selection: $settings.islandAccentTheme) {
                     ForEach(IslandAccentTheme.allCases) { theme in
@@ -932,26 +950,11 @@ struct SettingsView: View {
         }
     }
 
-    private var lyricsSettings: some View {
-        SettingsPage(title: "歌词", subtitle: "同步校准与桌面歌词外观") {
+    private var desktopLyricsSettings: some View {
+        SettingsPage(title: "桌面歌词", subtitle: "浮窗外观与显示行为") {
             LyricsSettingsPreview(settings: settings)
 
-            SettingsCard(title: "歌词同步", icon: "metronome") {
-                SettingsSliderRow(
-                    title: "时间偏移",
-                    value: $settings.lyricOffset,
-                    range: -3...3,
-                    step: 0.1,
-                    valueText: String(format: "%+.1f 秒", settings.lyricOffset)
-                )
-                HStack {
-                    Text("歌词比歌声慢时向右调整。").settingsHint()
-                    Spacer()
-                    Button("重置") { settings.lyricOffset = 0 }
-                }
-            }
-
-            SettingsCard(title: "桌面歌词", icon: "text.bubble") {
+            SettingsCard(title: "显示与外观", icon: "text.bubble") {
                 SettingLine(title: "显示桌面歌词", detail: "在所有桌面空间上悬浮显示") {
                     Toggle("", isOn: $settings.showsDesktopLyrics).labelsHidden()
                 }
