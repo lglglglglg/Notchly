@@ -479,20 +479,29 @@ struct IslandView: View {
 
     private var lyricsFooter: some View {
         VStack(spacing: 2) {
-            HStack(spacing: 5) {
-                Image(systemName: "quote.opening")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.purple)
-                Text(state.currentLyricText.isEmpty ? lyricStatusText : state.currentLyricText)
-                    .font(.caption.weight(state.currentLyricText.isEmpty ? .regular : .semibold))
-                    .foregroundStyle(state.currentLyricText.isEmpty ? .secondary : .primary)
-                    .lineLimit(1)
-                    .id(state.currentLyricText)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
-                Spacer(minLength: 0)
+            if state.currentLyricText.isEmpty {
+                HStack {
+                    Image(systemName: "music.note")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.purple.opacity(0.78))
+                    Spacer(minLength: 0)
+                }
+            } else {
+                HStack(spacing: 5) {
+                    Image(systemName: "quote.opening")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.purple)
+                    Text(state.currentLyricText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .id(state.currentLyricText)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)
+                        ))
+                    Spacer(minLength: 0)
+                }
             }
 
             if !state.nextLyricText.isEmpty {
@@ -527,13 +536,6 @@ struct IslandView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(.white.opacity(0.055), lineWidth: 0.5)
         }
-    }
-
-    private var lyricStatusText: String {
-        if !state.hasMusic { return "播放歌曲后将在这里同步歌词" }
-        if state.isLoadingLyrics { return "正在匹配同步歌词…" }
-        if state.isLyricInterlude { return "♪" }
-        return "暂未匹配到同步歌词"
     }
 
     private var artwork: some View {

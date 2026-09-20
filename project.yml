@@ -26,7 +26,27 @@ targets:
         INFOPLIST_FILE: Notchly/Info.plist
         CODE_SIGN_ENTITLEMENTS: Notchly/Notchly.entitlements
         SWIFT_VERSION: '6.0'
-        MARKETING_VERSION: '0.11.6'
-        CURRENT_PROJECT_VERSION: '45'
+        MARKETING_VERSION: '0.11.7'
+        CURRENT_PROJECT_VERSION: '46'
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
+  NotchlyTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/NotchlyTests
+    dependencies:
+      - target: Notchly
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.notchly.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: '6.0'
+schemes:
+  Notchly:
+    build:
+      targets:
+        Notchly: all
+    test:
+      targets:
+        - name: NotchlyTests

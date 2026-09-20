@@ -13,6 +13,20 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertEqual(lines.map(\.time), [1.2, 2.5, 63.005])
     }
 
+    func testLRCParserKeepsAndSequencesIntroCreditsBeforeFirstVocal() {
+        let lines = LyricsService.parseLRC("""
+        [00:00.00]作词：崔惟楷
+        [00:00.00]作曲：Alexander Bard
+        [00:00.00]编曲：林迈可
+        [00:12.00]天空的雾来得漫不经心
+        """)
+
+        XCTAssertEqual(lines.map(\.text), ["作词：崔惟楷", "作曲：Alexander Bard", "编曲：林迈可", "天空的雾来得漫不经心"])
+        XCTAssertEqual(lines.map(\.time), [0, 4, 8, 12])
+        XCTAssertEqual(lines.prefix(3).map(\.isCredit), [true, true, true])
+        XCTAssertFalse(lines[3].isCredit)
+    }
+
     func testPocketStoragePolicyAppliesCapacityAndDuplicateRules() {
         XCTAssertTrue(PocketStoragePolicy.canStore(incomingBytes: 128, usedBytes: 512, capacityMB: 1))
         XCTAssertFalse(PocketStoragePolicy.canStore(incomingBytes: 600_000, usedBytes: 512_000, capacityMB: 1))

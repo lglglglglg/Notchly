@@ -3,6 +3,13 @@ import Foundation
 struct TimedLyricLine: Identifiable, Hashable, Sendable {
     let time: TimeInterval
     let text: String
+    let isCredit: Bool
+
+    init(time: TimeInterval, text: String, isCredit: Bool = false) {
+        self.time = time
+        self.text = text
+        self.isCredit = isCredit
+    }
 
     var id: String { "\(time):\(text)" }
 }
@@ -174,10 +181,46 @@ actor LyricsService {
                 result.append(TimedLyricLine(time: minutes * 60 + seconds + fraction, text: text))
             }
         }
-        // Keep the source timeline intact. Credit lines such as “作词” and “作曲”
-        // are part of the lyrics shown by the desktop player and should appear at
-        // their original timestamps here as well.
-        return result.sorted { $0.time < $1.time }
+        let timeline = result.enumerated()
+            .sorted { lhs, rhs in
+                lhs.element.time == rhs.element.time ? lhs.offset < rhs.offset : lhs.element.time < rhs.element.time
+            }
+            .map(\.element)
+        return distributeIntroCredits(in: timeline)
+    }
+
+    /// NetEase commonly assigns every credit the same 00:00 timestamp. Showing
+    /// only the last one for a fraction of a second makes credits appear lost.
+    /// Space that opening group across the instrumental intro so every source
+    /// line remains part of the lyric timeline before the first vocal line.
+    nonisolated private static func distributeIntroCredits(in timeline: [TimedLyricLine]) -> [TimedLyricLine] {
+        guard let firstVocal = timeline.first(where: { !$0.isCredit && !isCredit($0.text) && $0.time > 0.2 }) else {
+            return timeline
+        }
+        let introCreditIndexes = timeline.indices.filter {
+            timeline[$0].time <= 0.2 && isCredit(timeline[$0].text)
+        }
+        guard !introCreditIndexes.isEmpty else { return timeline }
+
+        let slot = min(4, max(0.3, firstVocal.time / Double(introCreditIndexes.count)))
+        var creditOrder = 0
+        return timeline.enumerated().map { index, line in
+            guard introCreditIndexes.contains(index) else { return line }
+            defer { creditOrder += 1 }
+            return TimedLyricLine(time: Double(creditOrder) * slot, text: line.text, isCredit: true)
+        }
+    }
+
+    nonisolated private static func isCredit(_ text: String) -> Bool {
+        let compact = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "")
+            .lowercased()
+        let prefixes = [
+            "作词", "填词", "作曲", "编曲", "制作", "监制", "出品", "录音", "混音", "母带",
+            "和声", "吉他", "贝斯", "键盘", "鼓", "词:", "曲:", "lyrics", "composer", "arranger", "producer"
+        ]
+        return prefixes.contains { compact.hasPrefix($0) }
     }
 }
 

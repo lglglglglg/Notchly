@@ -453,14 +453,17 @@ final class IslandState: ObservableObject {
             ? lyricLines[followingStart...].first(where: { $0.text != candidate })?.text ?? ""
             : ""
         guard let currentIndex else {
-            setPublishedLyrics(current: "", next: next, progress: 0, start: 0, end: 0, isInterlude: false)
+            // Before the first timed lyric, leave the lyric card quiet instead
+            // of previewing a line early or implying that matching failed.
+            setPublishedLyrics(current: "", next: "", progress: 0, start: 0, end: 0, isInterlude: false)
             return
         }
 
-        let start = lyricLines[currentIndex].time
+        let line = lyricLines[currentIndex]
+        let start = line.time
         let nextLineStart = lyricLines.dropFirst(currentIndex + 1)
             .first(where: { $0.text != candidate })?.time
-        let end = lyricActiveEnd(start: start, nextStart: nextLineStart, text: candidate)
+        let end = lyricActiveEnd(line: line, nextStart: nextLineStart)
         let isInterlude = elapsed > end + 0.12
             && (nextLineStart == nil || elapsed < (nextLineStart ?? .greatestFiniteMagnitude) - 0.08)
 
@@ -480,7 +483,14 @@ final class IslandState: ObservableObject {
         )
     }
 
-    private func lyricActiveEnd(start: TimeInterval, nextStart: TimeInterval?, text: String) -> TimeInterval {
+    private func lyricActiveEnd(line: TimedLyricLine, nextStart: TimeInterval?) -> TimeInterval {
+        let start = line.time
+        if line.isCredit, let nextStart {
+            // Intro credits are genuine timeline content, not an interlude.
+            // Keep each one visible until the next credit or vocal line.
+            return max(start + 0.12, nextStart - 0.04)
+        }
+        let text = line.text
         let visibleCount = text.unicodeScalars.reduce(into: 0) { count, scalar in
             if !CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters).contains(scalar) {
                 count += 1
