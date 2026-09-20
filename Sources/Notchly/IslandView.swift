@@ -67,11 +67,15 @@ struct IslandView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .top, spacing: 10) {
                         VStack(alignment: .leading, spacing: 4) {
-                            (Text(state.musicTitle).fontWeight(.bold) +
-                             Text("  ·  \(state.musicArtist)").foregroundColor(.secondary))
+                            Text(state.musicTitle)
                                 .font(.headline)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.82)
+                                .minimumScaleFactor(0.76)
+                            Text(state.musicArtist)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.76)
                             if let message = state.musicActionMessage {
                                 Text(message)
                                     .font(.caption2.weight(.medium))
@@ -79,31 +83,8 @@ struct IslandView: View {
                                     .lineLimit(1)
                             }
                         }
-                        Spacer(minLength: 8)
-                        Menu {
-                            Button(state.isPomodoroRunning ? "暂停专注" : "开始 \(settings.focusMinutes) 分钟专注") {
-                                state.togglePomodoro()
-                            }
-                            Button("重新开始") {
-                                state.resetPomodoro()
-                                state.togglePomodoro()
-                            }
-                            Button("重置计时") { state.resetPomodoro() }
-                        } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: "timer")
-                                if state.isPomodoroRunning {
-                                    Text(state.timerText)
-                                        .font(.caption2.monospacedDigit())
-                                }
-                            }
-                        }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
-                        .help("专注计时")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         quickActionsMenu
-                        Button(action: dismiss) { Image(systemName: "chevron.up") }
-                            .help("收起")
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
@@ -183,7 +164,15 @@ struct IslandView: View {
                 .help([state.batteryStatus, state.batteryTimeRemaining].filter { !$0.isEmpty }.joined(separator: " · "))
             }
 
-            if settings.showsPower && settings.showsCalendar {
+            if settings.showsPower {
+                Divider()
+                    .overlay(.white.opacity(0.10))
+                    .padding(.vertical, 9)
+            }
+
+            footerFocusControl
+
+            if settings.showsCalendar {
                 Divider()
                     .overlay(.white.opacity(0.10))
                     .padding(.vertical, 9)
@@ -211,6 +200,25 @@ struct IslandView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(.white.opacity(0.055), lineWidth: 0.5)
         }
+    }
+
+    private var footerFocusControl: some View {
+        Menu {
+            Button(state.isPomodoroRunning ? "暂停专注" : "开始 \(settings.focusMinutes) 分钟专注") {
+                state.togglePomodoro()
+            }
+            Button("重新开始") {
+                state.resetPomodoro()
+                state.togglePomodoro()
+            }
+            Button("重置计时") { state.resetPomodoro() }
+        } label: {
+            Label(state.isPomodoroRunning ? state.timerText : "专注", systemImage: "timer")
+                .frame(maxWidth: .infinity, minHeight: 42)
+        }
+        .menuStyle(.borderlessButton)
+        .foregroundStyle(.orange)
+        .help("专注计时")
     }
 
     private var pocketDropRow: some View {

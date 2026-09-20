@@ -13,7 +13,7 @@ final class NotchPresentation: ObservableObject {
     @Published var notchHeight: CGFloat = 32
     @Published var centerX: CGFloat = 0
 
-    let panelSize = NSSize(width: 580, height: 252)
+    let panelSize = NSSize(width: 580, height: 272)
 
     var compactSize: NSSize {
         NSSize(width: max(220, notchWidth + 80), height: notchHeight + 2)
@@ -22,7 +22,7 @@ final class NotchPresentation: ObservableObject {
     // The compact island stays inside the menu-bar band; the expanded player
     // gets its own wider canvas so metadata, lyrics and status chips do not
     // compete for the same narrow strip.
-    var expandedSize: NSSize { NSSize(width: 540, height: 230) }
+    var expandedSize: NSSize { NSSize(width: 540, height: 250) }
 
     var expandedContentTopInset: CGFloat {
         NotchLayoutPolicy.expandedContentTopInset(notchHeight: notchHeight)
