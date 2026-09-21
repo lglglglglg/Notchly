@@ -1128,8 +1128,8 @@ struct SettingsView: View {
                         .buttonStyle(.bordered)
                 }
                 Divider()
-                SettingLine(title: "支持项目", detail: "为仓库点 Star 或参与贡献，支持持续开发") {
-                    Button("支持项目") { openExternalURL(projectRepositoryURL) }
+                SettingLine(title: "支持项目", detail: "微信或支付宝自愿赞赏，支持持续开发") {
+                    Button("查看赞赏页") { openExternalURL(donationPageURL) }
                         .buttonStyle(.bordered)
                 }
             }
@@ -1200,6 +1200,10 @@ struct SettingsView: View {
 
     private var projectIssuesURL: URL {
         URL(string: "https://github.com/lglglglglg/Notchly/issues")!
+    }
+
+    private var donationPageURL: URL {
+        URL(string: "https://github.com/lglglglglg/Notchly/blob/main/docs/DONATE.md")!
     }
 
     private var authorProfileURL: URL {

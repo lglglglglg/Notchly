@@ -5,7 +5,7 @@ set -euo pipefail
 project_root="${0:A:h:h}"
 source_app="$project_root/build-release-stable/Build/Products/Release/Notchly.app"
 stable_app="$project_root/dist/Notchly.app"
-version="${NOTCHLY_VERSION:-0.13.10}"
+version="${NOTCHLY_VERSION:-0.13.11}"
 zip_archive="$project_root/dist/Notchly-${version}-alpha-universal.zip"
 dmg_archive="$project_root/dist/Notchly-${version}-alpha-universal.dmg"
 signing_identity="${NOTCHLY_SIGNING_IDENTITY:--}"

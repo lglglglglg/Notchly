@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/macOS-14.0%2B-blue?logo=apple" alt="macOS 14.0+">
   <img src="https://img.shields.io/badge/Swift-6.0-orange?logo=swift" alt="Swift 6.0">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-0.13.10-purple" alt="Version 0.13.10">
+  <img src="https://img.shields.io/badge/Version-0.13.11-purple" alt="Version 0.13.11">
 </p>
 
 ---
@@ -137,6 +137,7 @@ cd Notchly
 - [证书与发布说明](docs/证书与发布说明.md)
 - [发布准备清单](docs/发布准备清单.md)
 - [贡献规范](CONTRIBUTING.md)
+- [赞助支持](docs/DONATE.md)
 - [项目署名与发布信息](docs/项目署名与发布信息.md)
 - [第三方许可](Notchly/THIRD_PARTY_NOTICES.txt)
 
