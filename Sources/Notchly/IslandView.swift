@@ -372,8 +372,6 @@ struct IslandView: View {
                     .frame(width: 92, height: 34)
                 Spacer()
                 quickActionsMenu
-                Button(action: dismiss) { Image(systemName: "chevron.up") }
-                    .buttonStyle(.plain)
             }
 
             HStack(spacing: 8) {

@@ -174,7 +174,7 @@ struct NotchIslandView: View {
                         height: state.settings.musicVisualizerStyle == .pulse || state.settings.musicVisualizerStyle == .cosmicDust ? 20 : 14
                     )
                 } else {
-                    Text("悬停")
+                    Text("未播放")
                         .foregroundStyle(.white.opacity(0.62))
                 }
             }
