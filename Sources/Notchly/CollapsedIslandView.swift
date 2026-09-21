@@ -23,10 +23,12 @@ final class NotchPresentation: ObservableObject {
         return NSSize(width: max(220, notchWidth + wingWidth * 2), height: notchHeight + 2)
     }
 
-    // The compact island stays inside the menu-bar band; the expanded player
-    // gets its own wider canvas so metadata, lyrics and status chips do not
-    // compete for the same narrow strip.
-    var expandedSize: NSSize { NSSize(width: 540, height: 250) }
+    // The player needs room for artwork, metadata and lyrics. Without music,
+    // keep the same width for the utility controls but collapse the unused
+    // player area into a compact glance panel.
+    func expandedSize(hasMusic: Bool) -> NSSize {
+        NSSize(width: 540, height: hasMusic ? 250 : 150)
+    }
 
     var expandedContentTopInset: CGFloat {
         NotchLayoutPolicy.expandedContentTopInset(notchHeight: notchHeight)
@@ -35,7 +37,7 @@ final class NotchPresentation: ObservableObject {
     func surfaceSize(hasMusic: Bool, isPomodoroRunning: Bool) -> NSSize {
         switch phase {
         case .compact: compactSize(hasMusic: hasMusic, isPomodoroRunning: isPomodoroRunning)
-        case .expanded: expandedSize
+        case .expanded: expandedSize(hasMusic: hasMusic)
         }
     }
 }
@@ -115,6 +117,7 @@ struct NotchIslandView: View {
                 }
             }
             .animation(.spring(response: 0.30, dampingFraction: 0.90), value: presentation.phase)
+            .animation(.spring(response: 0.30, dampingFraction: 0.90), value: state.hasMusic)
         }
         .frame(width: presentation.panelSize.width, height: presentation.panelSize.height, alignment: .top)
         .preferredColorScheme(.dark)

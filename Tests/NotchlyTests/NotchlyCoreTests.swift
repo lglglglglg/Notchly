@@ -137,6 +137,7 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertFalse(gate.finish())
     }
 
+    @MainActor
     func testExpandedNotchLayoutReservesCameraAreaWithoutTallEmptyHeader() {
         XCTAssertEqual(NotchLayoutPolicy.expandedContentTopInset(notchHeight: 32), 36)
         XCTAssertEqual(NotchLayoutPolicy.expandedContentTopInset(notchHeight: 48), 52)
@@ -147,6 +148,10 @@ final class NotchlyCoreTests: XCTestCase {
         )
         XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(hasMusic: false, isPomodoroRunning: false), 48)
         XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(hasMusic: true, isPomodoroRunning: true), 72)
+
+        let presentation = NotchPresentation()
+        XCTAssertEqual(presentation.expandedSize(hasMusic: true), NSSize(width: 540, height: 250))
+        XCTAssertEqual(presentation.expandedSize(hasMusic: false), NSSize(width: 540, height: 150))
     }
 
     @MainActor

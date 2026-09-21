@@ -403,9 +403,13 @@ struct IslandView: View {
             }
 
             TimelineView(.periodic(from: .now, by: 60)) { context in
-                Text(TimeGreetingPolicy.message(at: context.date))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                Label {
+                    Text("暂无播放 · \(TimeGreetingPolicy.message(at: context.date))")
+                } icon: {
+                    Image(systemName: "music.note")
+                }
+                .font(.caption)
+                .foregroundStyle(.tertiary)
             }
         }
         .padding(.horizontal, 64)
