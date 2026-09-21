@@ -81,6 +81,8 @@ Notchly 不读取键盘输入、屏幕内容或系统音频，也不需要屏幕
 
 前往 [GitHub Releases](https://github.com/lglglglglg/Notchly/releases) 下载最新版本 ZIP，解压后将 `Notchly.app` 拖入“应用程序”文件夹。
 
+也可以先访问 [Notchly 官方网站](https://lglglglglg.github.io/Notchly/) 了解功能并下载最新版本。
+
 Alpha 版本面向开发和测试；正式发行包应使用 Developer ID Application 签名并完成 Apple 公证。
 
 ### 本地编译源码
