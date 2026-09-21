@@ -1122,9 +1122,26 @@ struct SettingsView: View {
                 }
             }
 
+            SettingsCard(title: "开源与支持", icon: "chevron.left.forwardslash.chevron.right") {
+                SettingLine(title: "开源仓库", detail: "浏览源码、更新记录并参与开发") {
+                    Button("打开 GitHub") { openExternalURL(projectRepositoryURL) }
+                        .buttonStyle(.bordered)
+                }
+                Divider()
+                SettingLine(title: "支持项目", detail: "为仓库点 Star 或参与贡献，支持持续开发") {
+                    Button("支持项目") { openExternalURL(projectRepositoryURL) }
+                        .buttonStyle(.bordered)
+                }
+            }
+
             SettingsCard(title: "帮助与反馈", icon: "bubble.left.and.bubble.right") {
-                SettingLine(title: "反馈与建议", detail: "复制已包含环境信息的反馈模板") {
-                    Button("准备反馈") { copyFeedbackTemplate() }
+                SettingLine(title: "反馈与建议", detail: "在 GitHub Issues 中提交问题或建议") {
+                    Button("提交反馈") { openExternalURL(projectIssuesURL) }
+                        .buttonStyle(.borderedProminent)
+                }
+                Divider()
+                SettingLine(title: "反馈模板", detail: "复制版本与系统信息，便于定位问题") {
+                    Button("复制模板") { copyFeedbackTemplate() }
                 }
                 Divider()
                 SettingLine(title: "第三方许可", detail: "查看项目使用的开源组件与许可") {
@@ -1148,9 +1165,14 @@ struct SettingsView: View {
                 }
                 Divider()
                 SettingLine(title: "主理人", detail: "产品与开源维护") {
-                    Text("Stephan Li")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    Button {
+                        openExternalURL(authorProfileURL)
+                    } label: {
+                        Label("Stephan Li", systemImage: "arrow.up.right.square")
+                            .font(.body.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
                 }
                 Divider()
                 SettingLine(title: "版权所有", detail: "© 2026 Stephan Li（韩十久工作室 · Hanshijiu Studio）") {
@@ -1166,10 +1188,22 @@ struct SettingsView: View {
                 }
             }
 
-            Text("检查更新与在线反馈会在发布渠道确定后接入；当前入口不会伪装成已经联网。隐私政策与署名信息随应用一同提供。")
+            Text("问题与建议会在 GitHub Issues 中公开跟进；提交前请勿包含访问令牌、私人日历或其他敏感信息。")
                 .settingsHint()
                 .padding(.horizontal, 4)
         }
+    }
+
+    private var projectRepositoryURL: URL {
+        URL(string: "https://github.com/lglglglglg/Notchly")!
+    }
+
+    private var projectIssuesURL: URL {
+        URL(string: "https://github.com/lglglglglg/Notchly/issues")!
+    }
+
+    private var authorProfileURL: URL {
+        URL(string: "https://github.com/lglglglglg")!
     }
 
     private var appVersion: String {
@@ -1209,6 +1243,10 @@ struct SettingsView: View {
 
     private func openThirdPartyNotices() {
         openBundledDocument(resource: "THIRD_PARTY_NOTICES", fileExtension: "txt")
+    }
+
+    private func openExternalURL(_ url: URL) {
+        NSWorkspace.shared.open(url)
     }
 
     private func openBundledDocument(resource: String, fileExtension: String?) {
