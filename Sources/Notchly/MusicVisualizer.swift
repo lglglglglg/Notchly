@@ -7,7 +7,10 @@ struct MusicVisualizer: View {
     var highlight: Color = .pink
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isActive)) { timeline in
+        // Keep the decorative animation lightweight. The island also receives
+        // media/lyric updates on the main actor; 24 fps leaves enough headroom
+        // for the expand/collapse spring to stay responsive after long runs.
+        TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: !isActive)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
             Group {
                 switch style {

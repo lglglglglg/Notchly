@@ -42,7 +42,7 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
             object: state.settings,
             queue: .main
         ) { [weak self, weak state] _ in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 guard let self, let state else { return }
                 self.applySettings(state.settings)
             }
@@ -52,11 +52,26 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
             object: state.settings,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.moveToDefaultPosition() }
+            MainActor.assumeIsolated { self?.moveToDefaultPosition() }
         }
 
         applySettings(state.settings)
         restorePositionOrUseDefault()
+    }
+
+    func shutdown() {
+        pointerTimer?.invalidate()
+        pointerTimer = nil
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+            self.settingsObserver = nil
+        }
+        if let positionResetObserver {
+            NotificationCenter.default.removeObserver(positionResetObserver)
+            self.positionResetObserver = nil
+        }
+        panel.delegate = nil
+        panel.orderOut(nil)
     }
 
     private func applySettings(_ settings: AppSettings) {
@@ -161,7 +176,9 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
         }
         guard pointerTimer == nil else { return }
         pointerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.updatePointerState() }
+            // The timer is installed on the main run loop; execute directly
+            // instead of creating 20 short-lived Swift Tasks every second.
+            MainActor.assumeIsolated { self?.updatePointerState() }
         }
         pointerTimer?.tolerance = 1.0 / 30.0
     }
@@ -189,7 +206,10 @@ private struct DesktopLyricsView: View {
 
             VStack(spacing: 2) {
                 TimelineView(.animation(
-                    minimumInterval: 1.0 / 60.0,
+                    // Progress is derived from the playback clock locally.
+                    // Rendering at 30 fps is visually smooth while leaving
+                    // headroom for island transitions.
+                    minimumInterval: 1.0 / 30.0,
                     paused: !state.isPlaying || !settings.showsDesktopLyrics
                 )) { context in
                     KaraokeLyricText(

@@ -25,7 +25,6 @@ final class IslandState: ObservableObject {
     @Published private(set) var lyricLookupCompleted = false
     @Published private(set) var currentLyricText = ""
     @Published private(set) var nextLyricText = ""
-    @Published private(set) var currentLyricProgress = 0.0
     @Published private(set) var isLyricInterlude = false
     @Published private(set) var currentLyricStart: TimeInterval = 0
     @Published private(set) var currentLyricEnd: TimeInterval = 0
@@ -47,14 +46,15 @@ final class IslandState: ObservableObject {
     private var artworkTask: Task<Void, Never>?
     private var lyricsTask: Task<Void, Never>?
     private var lyricTimer: Timer?
-    private var playbackTimer: Timer?
     private var musicSnapshotDate = Date()
     private var lastReportedElapsed: TimeInterval?
     private var lastReportedAdvanceDate: Date?
     private var artworkKey: String?
     private var artworkCache: [URL: ArtworkCacheEntry] = [:]
+    private var artworkCacheCost = 0
     private let artworkCacheLifetime: TimeInterval = 60 * 60
-    private let artworkCacheLimit = 40
+    private let artworkCacheLimit = 20
+    private let artworkCacheCostLimit = 64 * 1_024 * 1_024
     private let calendarService = CalendarService()
     private let notificationService = NotificationService()
     private let musicService = MusicService()
@@ -71,6 +71,25 @@ final class IslandState: ObservableObject {
         }
         restorePomodoro()
         refreshPower()
+    }
+
+    func shutdown() {
+        timer?.invalidate()
+        timer = nil
+        lyricTimer?.invalidate()
+        lyricTimer = nil
+        musicRefreshTask?.cancel()
+        musicRefreshTask = nil
+        musicActionTask?.cancel()
+        musicActionTask = nil
+        clearMusicActionMessageTask?.cancel()
+        clearMusicActionMessageTask = nil
+        artworkTask?.cancel()
+        artworkTask = nil
+        lyricsTask?.cancel()
+        lyricsTask = nil
+        onMusicRefreshPolicyChanged = nil
+        musicService.shutdown()
     }
 
     var timerText: String {
@@ -141,7 +160,7 @@ final class IslandState: ObservableObject {
     private func beginTicking() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.updateRemainingTime() }
+            MainActor.assumeIsolated { self?.updateRemainingTime() }
         }
         timer?.tolerance = 0.1
     }
@@ -204,6 +223,7 @@ final class IslandState: ObservableObject {
                     )
                 }
             } catch {
+                DiagnosticStore.shared.recordMusicSnapshotFailure()
                 self.clearMusicPresentation(
                     title: "无法连接播放器",
                     artist: "请检查播放器或系统媒体权限",
@@ -229,21 +249,20 @@ final class IslandState: ObservableObject {
         artworkKey = nil
         lastReportedElapsed = nil
         lastReportedAdvanceDate = nil
-        musicTitle = title
-        musicArtist = artist
-        musicAlbum = ""
-        musicSource = source
-        hasMusic = false
-        isPlaying = false
-        musicElapsed = 0
-        musicDuration = 0
+        if musicTitle != title { musicTitle = title }
+        if musicArtist != artist { musicArtist = artist }
+        if !musicAlbum.isEmpty { musicAlbum = "" }
+        if musicSource != source { musicSource = source }
+        if hasMusic { hasMusic = false }
+        if isPlaying { isPlaying = false }
+        if musicElapsed != 0 { musicElapsed = 0 }
+        if musicDuration != 0 { musicDuration = 0 }
         musicSnapshotDate = Date()
-        updatePlaybackTicker()
-        artworkImage = nil
-        lyricLines = []
-        isLoadingLyrics = false
-        lyricSource = nil
-        lyricLookupCompleted = false
+        if artworkImage != nil { artworkImage = nil }
+        if !lyricLines.isEmpty { lyricLines = [] }
+        if isLoadingLyrics { isLoadingLyrics = false }
+        if lyricSource != nil { lyricSource = nil }
+        if lyricLookupCompleted { lyricLookupCompleted = false }
         publishLyrics(at: Date())
         updateLyricTicker()
         onMusicRefreshPolicyChanged?()
@@ -261,15 +280,8 @@ final class IslandState: ObservableObject {
             isPlaying: playback.isPlaying
         )
 
-        musicTitle = playback.title
-        musicArtist = playback.artist
-        musicAlbum = playback.album
-        musicSource = playback.source
-        hasMusic = true
         let wasPlaying = isPlaying
-        isPlaying = playback.isPlaying
-        musicDuration = playback.duration
-        musicElapsed = reconciledElapsed(
+        let resolvedElapsed = reconciledElapsed(
             incoming: playback.elapsed,
             predicted: predictedElapsed,
             isSameTrack: isSameTrack,
@@ -277,9 +289,21 @@ final class IslandState: ObservableObject {
             isPlaying: playback.isPlaying,
             incomingIsStale: incomingIsStale
         )
+
+        // MediaRemote may report the same metadata and position repeatedly.
+        // Avoid publishing identical values: every @Published assignment
+        // invalidates the SwiftUI tree and can steal frames from the island's
+        // expand/collapse animation during long playback sessions.
+        if musicTitle != playback.title { musicTitle = playback.title }
+        if musicArtist != playback.artist { musicArtist = playback.artist }
+        if musicAlbum != playback.album { musicAlbum = playback.album }
+        if musicSource != playback.source { musicSource = playback.source }
+        if !hasMusic { hasMusic = true }
+        if isPlaying != playback.isPlaying { isPlaying = playback.isPlaying }
+        if musicDuration != playback.duration { musicDuration = playback.duration }
+        if abs(musicElapsed - resolvedElapsed) >= 0.02 { musicElapsed = resolvedElapsed }
         musicSnapshotDate = now
         recordIncomingPosition(playback.elapsed, at: now, isSameTrack: isSameTrack)
-        updatePlaybackTicker()
         updateLyricTicker()
         onMusicRefreshPolicyChanged?()
 
@@ -316,20 +340,32 @@ final class IslandState: ObservableObject {
     private func cachedArtwork(for url: URL, now: Date = .now) -> NSImage? {
         guard let entry = artworkCache[url] else { return nil }
         guard now.timeIntervalSince(entry.cachedAt) < artworkCacheLifetime else {
-            artworkCache[url] = nil
+            removeCachedArtwork(for: url)
             return nil
         }
         return entry.image
     }
 
     private func storeArtwork(_ image: NSImage, for url: URL, now: Date = .now) {
-        artworkCache[url] = ArtworkCacheEntry(image: image, cachedAt: now)
-        guard artworkCache.count > artworkCacheLimit else { return }
-        let expired = artworkCache
-            .sorted { $0.value.cachedAt < $1.value.cachedAt }
-            .prefix(artworkCache.count - artworkCacheLimit)
-            .map(\.key)
-        expired.forEach { artworkCache[$0] = nil }
+        removeCachedArtwork(for: url)
+        let cost = max(
+            1,
+            Int(max(image.size.width, 1) * max(image.size.height, 1) * 4)
+        )
+        artworkCache[url] = ArtworkCacheEntry(image: image, cachedAt: now, cost: cost)
+        artworkCacheCost += cost
+
+        while artworkCache.count > artworkCacheLimit || artworkCacheCost > artworkCacheCostLimit {
+            guard let oldest = artworkCache.min(by: { $0.value.cachedAt < $1.value.cachedAt })?.key else {
+                break
+            }
+            removeCachedArtwork(for: oldest)
+        }
+    }
+
+    private func removeCachedArtwork(for url: URL) {
+        guard let entry = artworkCache.removeValue(forKey: url) else { return }
+        artworkCacheCost = max(0, artworkCacheCost - entry.cost)
     }
 
     private func reconciledElapsed(
@@ -388,32 +424,6 @@ final class IslandState: ObservableObject {
         }
     }
 
-    private func updatePlaybackTicker() {
-        guard hasMusic, isPlaying else {
-            playbackTimer?.invalidate()
-            playbackTimer = nil
-            return
-        }
-        guard playbackTimer == nil else { return }
-        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.advancePlaybackClock() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        playbackTimer = timer
-    }
-
-    private func advancePlaybackClock() {
-        guard hasMusic, isPlaying else {
-            updatePlaybackTicker()
-            return
-        }
-        let now = Date()
-        let elapsed = elapsedTime(at: now)
-        guard abs(elapsed - musicElapsed) >= 0.05 else { return }
-        musicElapsed = elapsed
-        musicSnapshotDate = now
-    }
-
     private func loadLyrics(for playback: MusicPlayback, key: String) {
         lyricsTask?.cancel()
         lyricLines = []
@@ -445,15 +455,19 @@ final class IslandState: ObservableObject {
             return
         }
         guard lyricTimer == nil else { return }
-        lyricTimer = Timer.scheduledTimer(withTimeInterval: 0.10, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.publishLyrics(at: Date()) }
+        // The desktop lyric view samples progress with its own TimelineView.
+        // The state ticker only needs to notice line/interlude changes, so
+        // 4 Hz is enough and avoids publishing needless @Published updates
+        // on the main actor throughout a long listening session.
+        lyricTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.publishLyrics(at: Date()) }
         }
-        lyricTimer?.tolerance = 0.02
+        lyricTimer?.tolerance = 0.05
     }
 
     private func publishLyrics(at date: Date) {
         guard !lyricLines.isEmpty else {
-            setPublishedLyrics(current: "", next: "", progress: 0, start: 0, end: 0, isInterlude: false)
+            setPublishedLyrics(current: "", next: "", start: 0, end: 0, isInterlude: false)
             return
         }
         let elapsed = elapsedTime(at: date) + settings.lyricOffset
@@ -466,7 +480,7 @@ final class IslandState: ObservableObject {
         guard let currentIndex else {
             // Before the first timed lyric, leave the lyric card quiet instead
             // of previewing a line early or implying that matching failed.
-            setPublishedLyrics(current: "", next: "", progress: 0, start: 0, end: 0, isInterlude: false)
+            setPublishedLyrics(current: "", next: "", start: 0, end: 0, isInterlude: false)
             return
         }
 
@@ -479,15 +493,13 @@ final class IslandState: ObservableObject {
             && (nextLineStart == nil || elapsed < (nextLineStart ?? .greatestFiniteMagnitude) - 0.08)
 
         if isInterlude {
-            setPublishedLyrics(current: "", next: next, progress: 0, start: 0, end: 0, isInterlude: true)
+            setPublishedLyrics(current: "", next: next, start: 0, end: 0, isInterlude: true)
             return
         }
 
-        let progress = lyricProgress(elapsed: elapsed, start: start, end: end)
         setPublishedLyrics(
             current: candidate,
             next: next,
-            progress: progress,
             start: start,
             end: end,
             isInterlude: false
@@ -534,14 +546,12 @@ final class IslandState: ObservableObject {
     private func setPublishedLyrics(
         current: String,
         next: String,
-        progress: Double,
         start: TimeInterval,
         end: TimeInterval,
         isInterlude: Bool
     ) {
         if currentLyricText != current { currentLyricText = current }
         if nextLyricText != next { nextLyricText = next }
-        if abs(currentLyricProgress - progress) > 0.002 { currentLyricProgress = progress }
         if currentLyricStart != start { currentLyricStart = start }
         if currentLyricEnd != end { currentLyricEnd = end }
         if self.isLyricInterlude != isInterlude { self.isLyricInterlude = isInterlude }
@@ -692,6 +702,7 @@ struct MusicRefreshGate {
 private struct ArtworkCacheEntry {
     let image: NSImage
     let cachedAt: Date
+    let cost: Int
 }
 
 private extension Date {

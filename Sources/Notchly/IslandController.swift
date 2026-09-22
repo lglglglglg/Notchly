@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class IslandController {
+final class IslandController: NSObject {
     private let panel: NSPanel
     private let state: IslandState
     private let presentation = NotchPresentation()
@@ -27,6 +27,7 @@ final class IslandController {
             backing: .buffered,
             defer: false
         )
+        super.init()
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -76,6 +77,24 @@ final class IslandController {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    func shutdown() {
+        collapseTask?.cancel()
+        collapseTask = nil
+        musicRefreshTimer?.invalidate()
+        musicRefreshTimer = nil
+        powerRefreshTimer?.invalidate()
+        powerRefreshTimer = nil
+        pointerTimer?.invalidate()
+        pointerTimer = nil
+        removeDismissMonitors()
+        if let desktopLyricsObserver {
+            NotificationCenter.default.removeObserver(desktopLyricsObserver)
+            self.desktopLyricsObserver = nil
+        }
+        NotificationCenter.default.removeObserver(self)
+        panel.orderOut(nil)
     }
 
     private func presentFirstLaunchWelcomeIfNeeded() {
@@ -177,12 +196,16 @@ final class IslandController {
     private func updatePointerTracking() {
         // The compact island only needs to detect entry into its small hover
         // target. Full-rate tracking is reserved for the interactive panel.
-        let interval = presentation.phase == .expanded ? 1.0 / 60.0 : 1.0 / 12.0
+        // Pointer hover does not need display-refresh frequency. Keeping this
+        // below 60 Hz leaves the main run loop free for the island spring.
+        let interval = presentation.phase == .expanded ? 1.0 / 30.0 : 1.0 / 12.0
         guard pointerInterval != interval else { return }
         pointerTimer?.invalidate()
         pointerInterval = interval
         pointerTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.updatePointerState() }
+            // This timer is created on the main run loop. Avoid allocating a
+            // new Swift Task 12–30 times per second for the lifetime of the app.
+            MainActor.assumeIsolated { self?.updatePointerState() }
         }
         pointerTimer?.tolerance = interval * 0.25
     }
@@ -239,9 +262,7 @@ final class IslandController {
         musicRefreshTimer?.invalidate()
         musicRefreshInterval = interval
         musicRefreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.state.refreshMusic()
-            }
+            MainActor.assumeIsolated { self?.state.refreshMusic() }
         }
         musicRefreshTimer?.tolerance = min(1, interval * 0.15)
     }
@@ -255,7 +276,7 @@ final class IslandController {
         powerRefreshTimer?.invalidate()
         powerRefreshInterval = interval
         powerRefreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.state.refreshPower() }
+            MainActor.assumeIsolated { self?.state.refreshPower() }
         }
         powerRefreshTimer?.tolerance = min(5, interval * 0.2)
     }

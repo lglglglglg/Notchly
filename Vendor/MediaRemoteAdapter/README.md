@@ -135,7 +135,7 @@ mediaController.getTrackInfo { trackInfo in
 | `durationMicros`, `elapsedTimeMicros`, `timestampEpochMicros` | `Double?` | |
 | `playbackRate` | `Double?` | 1.0 = playing, 0.0 = paused |
 | `currentElapsedTime` | `TimeInterval?` | **Computed** - real-time position in seconds |
-| `artwork` | `NSImage?` | Decoded once from base64 data at init |
+| `artwork` | `NSImage?` | Decoded on demand from base64 data when accessed |
 | `PID` | `pid_t?` | |
 | `shuffleMode` | `ShuffleMode?` | |
 | `repeatMode` | `RepeatMode?` | |

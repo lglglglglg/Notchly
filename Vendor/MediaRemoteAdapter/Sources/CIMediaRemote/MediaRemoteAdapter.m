@@ -25,6 +25,10 @@ static pid_t _parentPID = 0;
 static dispatch_source_t _parentMonitorTimer = NULL;
 static dispatch_source_t _stdinSource = NULL;
 static NSMutableData *_stdinBuffer = nil;
+// Position/play-state notifications usually reuse the same artwork. Avoid
+// re-encoding a large image as Base64 for every notification.
+static NSString *_lastArtworkTrackKey = nil;
+static BOOL _lastArtworkWasAvailable = NO;
 
 static void printOut(NSString *message) {
     fprintf(stdout, "%s\n", [message UTF8String]);
@@ -62,7 +66,7 @@ static NSString *serializeData(NSDictionary *data, BOOL diff) {
 }
 
 static NSMutableDictionary *
-convertNowPlayingInformation(NSDictionary *information) {
+convertNowPlayingInformation(NSDictionary *information, BOOL includeArtwork) {
     NSMutableDictionary *data = [NSMutableDictionary dictionary];
 
     void (^setKey)(id, id) = ^(id key, id fromKey) {
@@ -129,14 +133,19 @@ convertNowPlayingInformation(NSDictionary *information) {
     });
     setKey((NSString *)kArtworkMimeType,
            (__bridge id)kMRMediaRemoteNowPlayingInfoArtworkMIMEType);
-    setValue((NSString *)kArtworkDataBase64, ^id {
-      NSData *artworkDataValue =
-          (NSData *)information[(__bridge NSString *)kMRMediaRemoteNowPlayingInfoArtworkData];
-      if (artworkDataValue != nil) {
-          return [artworkDataValue base64EncodedStringWithOptions:0];
-      }
-      return nil;
-    });
+    if (includeArtwork) {
+        setValue((NSString *)kArtworkDataBase64, ^id {
+          NSData *artworkDataValue =
+              (NSData *)information[(__bridge NSString *)kMRMediaRemoteNowPlayingInfoArtworkData];
+          if (artworkDataValue != nil) {
+              return [artworkDataValue base64EncodedStringWithOptions:0];
+          }
+          return nil;
+        });
+    } else {
+        [data setObject:[NSNull null] forKey:(NSString *)kArtworkDataBase64];
+        [data setObject:[NSNull null] forKey:(NSString *)kArtworkMimeType];
+    }
     setValue((NSString *)kShuffleMode, ^id {
       NSNumber *mode = information[(__bridge NSString *)kMRMediaRemoteNowPlayingInfoShuffleMode];
       return mode;
@@ -180,7 +189,20 @@ static void processNowPlayingInfo(NSDictionary *nowPlayingInfo, BOOL isPlaying, 
     id title = nowPlayingInfo[(__bridge NSString *)kMRMediaRemoteNowPlayingInfoTitle];
     if (title == nil || title == [NSNull null] || ([title isKindOfClass:[NSString class]] && [(NSString *)title length] == 0)) return;
 
-    NSMutableDictionary *data = convertNowPlayingInformation(nowPlayingInfo);
+    NSString *artist = nowPlayingInfo[(__bridge NSString *)kMRMediaRemoteNowPlayingInfoArtist] ?: @"";
+    NSString *album = nowPlayingInfo[(__bridge NSString *)kMRMediaRemoteNowPlayingInfoAlbum] ?: @"";
+    NSString *bundleIdentifier = application.bundleIdentifier ?: @"";
+    NSString *artworkTrackKey = [NSString stringWithFormat:@"%@|%@|%@|%@",
+                                  bundleIdentifier, title, artist, album];
+    NSData *artworkData = nowPlayingInfo[(__bridge NSString *)kMRMediaRemoteNowPlayingInfoArtworkData];
+    BOOL artworkAvailable = [artworkData isKindOfClass:[NSData class]] && artworkData.length > 0;
+    BOOL includeArtwork = ![_lastArtworkTrackKey isEqualToString:artworkTrackKey]
+        || (!_lastArtworkWasAvailable && artworkAvailable);
+    NSMutableDictionary *data = convertNowPlayingInformation(nowPlayingInfo, includeArtwork);
+    if (includeArtwork) {
+        _lastArtworkTrackKey = artworkTrackKey;
+        _lastArtworkWasAvailable = artworkAvailable;
+    }
     [data setObject:@(isPlaying) forKey:(NSString *)kIsPlaying];
     if (application) {
         data[(NSString *)kBundleIdentifier] = application.bundleIdentifier;
@@ -268,6 +290,8 @@ static void setupParentMonitoring(void) {
 // C function implementations to be called from Perl
 void bootstrap(void) {
     _queue = dispatch_queue_create("mediaremote-adapter", DISPATCH_QUEUE_SERIAL);
+    _lastArtworkTrackKey = nil;
+    _lastArtworkWasAvailable = NO;
 
     // Set up parent process monitoring
     setupParentMonitoring();
@@ -398,22 +422,26 @@ void loop(void) {
     });
 
     void (^handler)(NSNotification *) = ^(NSNotification *notification) {
-      // If there's an existing block scheduled, cancel it.
-      if (_debounce_block) {
-          dispatch_block_cancel(_debounce_block);
-      }
-
-      // Create a new block to be executed after the delay.
-      _debounce_block = dispatch_block_create(0, ^{
-          @autoreleasepool {
-              id pidValue = notification.userInfo[(__bridge NSString *)kMRMediaRemoteNowPlayingApplicationPIDUserInfoKey];
-              int pid = (pidValue != nil) ? [pidValue intValue] : 0;
-              fetchAndProcess(pid);
+      // NotificationCenter may invoke this block on different posting
+      // threads. Serialize debounce state on the MediaRemote queue.
+      NSDictionary *userInfo = [notification.userInfo copy];
+      dispatch_async(_queue, ^{
+          if (_debounce_block) {
+              dispatch_block_cancel(_debounce_block);
           }
+
+          _debounce_block = dispatch_block_create(0, ^{
+              @autoreleasepool {
+                  id pidValue = userInfo[(__bridge NSString *)kMRMediaRemoteNowPlayingApplicationPIDUserInfoKey];
+                  int pid = (pidValue != nil) ? [pidValue intValue] : 0;
+                  fetchAndProcess(pid);
+              }
+          });
+
+          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                         _queue,
+                         _debounce_block);
       });
-      
-      // Schedule the new block to run after a 100ms delay.
-      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), _queue, _debounce_block);
     };
     
     [[NSNotificationCenter defaultCenter]

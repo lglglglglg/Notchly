@@ -69,6 +69,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        NotificationCenter.default.removeObserver(self)
+        islandController?.shutdown()
+        desktopLyricsController?.shutdown()
+        state.shutdown()
+        UNUserNotificationCenter.current().delegate = nil
+    }
+
     /// Keep a single status-bar owner even when another build of Notchly is opened.
     /// The newly launched build stays alive and asks older instances to quit.
     private func terminateOlderInstances() {
@@ -110,21 +118,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeStatusBarIcon() -> NSImage {
-        let size = NSSize(width: 21, height: 18)
-        let image = NSImage(size: size, flipped: false) { _ in
-            NSColor.black.setFill()
-
-            // The compact Dynamic Island silhouette: one pill and one satellite dot.
-            // Template rendering keeps it consistent with the other menu-bar icons.
-            NSBezierPath(
-                roundedRect: NSRect(x: 1, y: 6.25, width: 13, height: 5.5),
-                xRadius: 2.75,
-                yRadius: 2.75
-            ).fill()
-            NSBezierPath(ovalIn: NSRect(x: 16, y: 6.5, width: 5, height: 5)).fill()
-            return true
-        }
-        image.isTemplate = true
+        // Reuse the product icon instead of drawing a pill-and-dot glyph that
+        // looks like macOS's generic “more” menu at status-bar size. A private
+        // copy keeps the Dock/About icon's intrinsic size untouched.
+        let image = (NSApp.applicationIconImage.copy() as? NSImage) ?? NSImage()
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = false
         image.accessibilityDescription = "Notchly"
         return image
     }

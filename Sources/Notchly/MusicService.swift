@@ -47,6 +47,9 @@ final class MusicService {
     private var activeProvider: PlayerProvider?
     private var cachedArtworkKey: String?
     private var cachedArtworkData: Data?
+    private var cachedSystemArtworkKey: String?
+    private var cachedSystemArtworkPayload: String?
+    private var cachedSystemArtworkData: Data?
     private let mediaController: MediaController
     private let scriptReader = MusicScriptReader()
     private var systemPlayback: (provider: PlayerProvider, playback: MusicPlayback)?
@@ -68,7 +71,18 @@ final class MusicService {
         }
     }
 
+    func shutdown() {
+        listenerRestartTask?.cancel()
+        listenerRestartTask = nil
+        isListeningToSystemMedia = false
+        mediaController.stopListening()
+        mediaController.onTrackInfoReceived = nil
+        mediaController.onListenerTerminated = nil
+        mediaController.onDecodingError = nil
+    }
+
     func snapshot() async throws -> MusicPlayback? {
+        DiagnosticStore.shared.recordMusicSnapshotRequest()
         let hasRunningSystemProvider = systemProviders.contains(where: \.isRunning)
         updateSystemMediaListener(hasRunningSystemProvider: hasRunningSystemProvider)
         if let systemPlayback, !systemPlayback.provider.isRunning {
@@ -76,6 +90,7 @@ final class MusicService {
         }
         if let systemPlayback, systemPlayback.playback.isPlaying {
             activeProvider = systemPlayback.provider
+            DiagnosticStore.shared.recordMusicSnapshotSuccess(provider: systemPlayback.provider.displayName)
             return systemPlayback.playback
         }
 
@@ -87,14 +102,17 @@ final class MusicService {
 
         if let systemPlayback, systemPlayback.provider.isRunning, systemPlayback.playback.isPlaying {
             activeProvider = systemPlayback.provider
+            DiagnosticStore.shared.recordMusicSnapshotSuccess(provider: systemPlayback.provider.displayName)
             return systemPlayback.playback
         }
 
         guard let scriptedPlayback else {
             if let systemPlayback {
                 activeProvider = systemPlayback.provider
+                DiagnosticStore.shared.recordMusicSnapshotSuccess(provider: systemPlayback.provider.displayName)
                 return systemPlayback.playback
             }
+            DiagnosticStore.shared.setActiveProvider(nil)
             return nil
         }
 
@@ -107,6 +125,7 @@ final class MusicService {
             }
         }
         activeProvider = scriptedPlayback.provider
+        DiagnosticStore.shared.recordMusicSnapshotSuccess(provider: scriptedPlayback.provider.displayName)
         return MusicPlayback(
             title: scriptedPlayback.title,
             artist: scriptedPlayback.artist,
@@ -165,6 +184,7 @@ final class MusicService {
     }
 
     private func receiveSystemTrack(_ trackInfo: TrackInfo?) {
+        DiagnosticStore.shared.recordMediaRemoteEvent()
         guard let payload = trackInfo?.payload,
               let title = payload.title,
               !title.isEmpty,
@@ -177,6 +197,11 @@ final class MusicService {
                       applicationName.localizedCaseInsensitiveCompare($0) == .orderedSame
                   }
               }) else {
+            // MediaRemote can briefly emit NIL/partial payloads while a
+            // player is switching tracks. Do not turn every such event into a
+            // SwiftUI refresh; only publish a clear transition once.
+            DiagnosticStore.shared.recordMediaRemoteInvalid("媒体数据不完整")
+            guard systemPlayback != nil else { return }
             systemPlayback = nil
             onSystemPlaybackChanged?()
             return
@@ -184,19 +209,60 @@ final class MusicService {
 
         let duration = max(0, (payload.durationMicros ?? 0) / 1_000_000)
         let elapsed = max(0, payload.currentElapsedTime ?? ((payload.elapsedTimeMicros ?? 0) / 1_000_000))
-        let artworkData = payload.artworkDataBase64.flatMap { Data(base64Encoded: $0) }
-        systemPlayback = (provider, MusicPlayback(
+        let album = payload.album?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let isPlaying = payload.isPlaying ?? ((payload.playbackRate ?? 0) > 0)
+        let clampedElapsed = min(elapsed, duration > 0 ? duration : elapsed)
+
+        // Check the cheap metadata fields before decoding a potentially large
+        // base64 artwork payload on every MediaRemote notification.
+        if let previous = systemPlayback,
+           previous.provider == provider,
+           previous.playback.title == title,
+           previous.playback.artist == (payload.artist ?? "未知歌手"),
+           previous.playback.album == album,
+           previous.playback.duration == duration,
+           previous.playback.isPlaying == isPlaying,
+           (previous.playback.artworkData == nil) == (payload.artworkDataBase64?.isEmpty != false),
+           abs(previous.playback.elapsed - clampedElapsed) < 1.0 {
+            DiagnosticStore.shared.recordMediaRemoteDeduplicated()
+            return
+        }
+
+        let artworkKey = "\(provider.displayName):\(title):\(payload.artist ?? "未知歌手")"
+        let artworkPayload = payload.artworkDataBase64
+        let artworkData: Data?
+        if cachedSystemArtworkKey == artworkKey,
+           cachedSystemArtworkPayload == artworkPayload {
+            DiagnosticStore.shared.recordArtworkCache(hit: true)
+            artworkData = cachedSystemArtworkData
+        } else {
+            DiagnosticStore.shared.recordArtworkCache(hit: false)
+            artworkData = artworkPayload.flatMap { Data(base64Encoded: $0) }
+            cachedSystemArtworkKey = artworkKey
+            cachedSystemArtworkPayload = artworkPayload
+            cachedSystemArtworkData = artworkData
+        }
+        let playback = MusicPlayback(
             title: title,
             artist: payload.artist ?? "未知歌手",
-            album: payload.album?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            isPlaying: payload.isPlaying ?? ((payload.playbackRate ?? 0) > 0),
+            album: album,
+            isPlaying: isPlaying,
             source: provider.displayName,
-            elapsed: min(elapsed, duration > 0 ? duration : elapsed),
+            elapsed: clampedElapsed,
             duration: duration,
             artworkData: artworkData,
             artworkURL: nil
-        ))
+        )
+
+        // MediaRemote can emit a now-playing notification for every tiny
+        // position update. Forwarding all of those updates to SwiftUI causes
+        // needless main-actor invalidations and eventually makes the island
+        // expansion animation compete with the media stream. The local
+        // playback clock already advances between snapshots, so only publish
+        // material changes here (track, play state, or a meaningful seek).
+        systemPlayback = (provider, playback)
         listenerRestartAttempt = 0
+        DiagnosticStore.shared.recordMediaRemotePublished(provider: provider.displayName)
         onSystemPlaybackChanged?()
     }
 
@@ -213,6 +279,8 @@ final class MusicService {
             startSystemMediaListener()
         } else {
             mediaController.stopListening()
+            DiagnosticStore.shared.recordListenerStopped()
+            DiagnosticStore.shared.setActiveProvider(nil)
             systemPlayback = nil
             onSystemPlaybackChanged?()
         }
@@ -220,12 +288,11 @@ final class MusicService {
 
     private func startSystemMediaListener() {
         guard isListeningToSystemMedia else { return }
+        // The long-lived helper performs its own initial fetch. Starting a
+        // second one-shot helper here duplicates work and can briefly deliver
+        // conflicting snapshots while the listener is coming online.
         mediaController.startListening()
-        mediaController.getTrackInfo { [weak self] trackInfo in
-            Task { @MainActor [weak self] in
-                self?.receiveSystemTrack(trackInfo)
-            }
-        }
+        DiagnosticStore.shared.recordListenerStarted()
     }
 
     private func scheduleSystemMediaListenerRestart() {
@@ -234,6 +301,7 @@ final class MusicService {
               listenerRestartTask == nil else { return }
         let delay = MediaListenerPolicy.retryDelay(forAttempt: listenerRestartAttempt)
         listenerRestartAttempt += 1
+        DiagnosticStore.shared.recordListenerRestart()
         listenerRestartTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled, let self else { return }

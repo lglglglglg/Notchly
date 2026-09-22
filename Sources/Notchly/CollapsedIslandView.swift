@@ -163,19 +163,46 @@ struct NotchIslandView: View {
                         Text(state.timerText).monospacedDigit()
                     }
                 } else if state.hasMusic {
-                    MusicVisualizer(
-                        style: state.settings.musicVisualizerStyle,
-                        isActive: state.isPlaying,
-                        tint: state.settings.islandAccentTheme.accent,
-                        highlight: state.settings.islandAccentTheme.highlight
-                    )
-                    .frame(
-                        width: state.settings.musicVisualizerStyle == .pulse || state.settings.musicVisualizerStyle == .cosmicDust ? 32 : 22,
-                        height: state.settings.musicVisualizerStyle == .pulse || state.settings.musicVisualizerStyle == .cosmicDust ? 20 : 14
-                    )
+                    TimelineView(.animation(
+                        minimumInterval: 1,
+                        paused: !state.isPlaying
+                    )) { context in
+                        let elapsed = state.elapsedTime(at: context.date)
+                        VStack(spacing: 3) {
+                            Text(CompactPlaybackPolicy.label(
+                                isPlaying: state.isPlaying,
+                                elapsed: elapsed,
+                                duration: state.musicDuration
+                            ))
+                            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(state.isPlaying ? 0.86 : 0.58))
+                            .monospacedDigit()
+                            .lineLimit(1)
+
+                            if state.isPlaying, state.musicDuration > 0 {
+                                let progress = CompactPlaybackPolicy.progress(
+                                    elapsed: elapsed,
+                                    duration: state.musicDuration
+                                )
+                                Capsule()
+                                    .fill(.white.opacity(0.14))
+                                    .frame(width: 28, height: 1.5)
+                                    .overlay(alignment: .leading) {
+                                        Capsule()
+                                            .fill(state.settings.islandAccentTheme.accent)
+                                            .frame(width: 28 * progress, height: 1.5)
+                                    }
+                            }
+                        }
+                        .help([state.musicTitle, state.musicArtist]
+                            .filter { !$0.isEmpty }
+                            .joined(separator: " · "))
+                    }
                 } else {
-                    Text("未播放")
-                        .foregroundStyle(.white.opacity(0.62))
+                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                        Text(TimeGreetingPolicy.compactMessage(at: context.date))
+                            .foregroundStyle(.white.opacity(0.62))
+                    }
                 }
             }
             .font(.caption2.weight(.semibold))
@@ -194,6 +221,15 @@ struct NotchIslandView: View {
                 .scaledToFill()
                 .frame(width: 20, height: 20)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .overlay {
+                    if !state.isPlaying {
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 13, height: 13)
+                            .background(.black.opacity(0.72), in: Circle())
+                    }
+                }
         } else {
             albumPlaceholder(size: 20, radius: 5)
         }
@@ -285,5 +321,23 @@ enum NotchLayoutPolicy {
         // Keep the top edge visually flat, like a shallow MacBook notch
         // extension, rather than turning the expanded island into a deep arch.
         min(max(28, notchHeight), containerHeight * 0.20)
+    }
+}
+
+enum CompactPlaybackPolicy {
+    static func label(
+        isPlaying: Bool,
+        elapsed: TimeInterval,
+        duration: TimeInterval
+    ) -> String {
+        guard isPlaying else { return "已暂停" }
+        guard elapsed.isFinite, elapsed >= 0, duration > 0 else { return "播放中" }
+        let total = Int(elapsed.rounded(.down))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    static func progress(elapsed: TimeInterval, duration: TimeInterval) -> CGFloat {
+        guard elapsed.isFinite, duration.isFinite, duration > 0 else { return 0 }
+        return min(max(elapsed / duration, 0), 1)
     }
 }

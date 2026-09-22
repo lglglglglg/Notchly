@@ -18,6 +18,7 @@ public class MediaController {
     private var eventCount = 0
     private let bufferLock = NSLock()
     private let restartThreshold = 100
+    private let maximumBufferedOutputBytes = 32 * 1_024 * 1_024
     private let commandQueue = DispatchQueue(label: "mediaremote-adapter.commands")
     private static let sigpipeIgnored: Void = {
         signal(SIGPIPE, SIG_IGN)
@@ -180,6 +181,9 @@ public class MediaController {
     }
 
     private func startListeningInternal() {
+        // A delayed restart and a fresh provider-state refresh can overlap.
+        // Never create two helper processes for the same listener.
+        guard listeningProcess == nil else { return }
         guard let scriptPath = perlScriptPath else {
             return
         }
@@ -187,17 +191,17 @@ public class MediaController {
             return
         }
 
-        listeningProcess = Process()
-        listeningProcess?.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-
-        listeningProcess?.arguments = [scriptPath, libraryPath, "loop"]
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        process.arguments = [scriptPath, libraryPath, "loop"]
+        listeningProcess = process
 
         let inputPipe = Pipe()
-        listeningProcess?.standardInput = inputPipe
+        process.standardInput = inputPipe
         self.listeningInputPipe = inputPipe
 
         let outputPipe = Pipe()
-        listeningProcess?.standardOutput = outputPipe
+        process.standardOutput = outputPipe
 
         outputPipe.fileHandleForReading.readabilityHandler = { [weak self] fileHandle in
             guard let self = self else { return }
@@ -212,6 +216,17 @@ public class MediaController {
             defer { self.bufferLock.unlock() }
 
             self.dataBuffer.append(incomingData)
+
+            // A malformed helper response without a newline must not grow the
+            // parent process indefinitely during a long listening session.
+            guard self.dataBuffer.count <= self.maximumBufferedOutputBytes else {
+                self.dataBuffer.removeAll(keepingCapacity: false)
+                self.dataBufferSearchStart = 0
+                DispatchQueue.main.async {
+                    self.onDecodingError?(MediaControllerError.outputBufferLimitExceeded, Data())
+                }
+                return
+            }
 
             guard let newlineData = "\n".data(using: .utf8) else { return }
             while let range = self.dataBuffer.firstRange(of: newlineData, in: self.dataBufferSearchStart..<self.dataBuffer.count) {
@@ -233,6 +248,7 @@ public class MediaController {
 
                 if !lineData.isEmpty {
                     self.eventCount += 1
+                    let shouldRestart = self.eventCount >= self.restartThreshold
 
                     do {
                         let trackInfo = try JSONDecoder().decode(TrackInfo.self, from: lineData)
@@ -241,7 +257,7 @@ public class MediaController {
                             self.lastTrackInfo = emitted
                             self.onTrackInfoReceived?(emitted)
 
-                            if self.eventCount >= self.restartThreshold {
+                            if shouldRestart {
                                 self.restartListeningProcess()
                             }
                         }
@@ -256,21 +272,29 @@ public class MediaController {
             self.dataBufferSearchStart = self.dataBuffer.count
         }
 
-        listeningProcess?.terminationHandler = { [weak self] process in
+        process.terminationHandler = { [weak self] terminatedProcess in
             DispatchQueue.main.async {
-                self?.listeningProcess = nil
-                self?.listeningInputPipe = nil
-                if self?.eventCount != 0 {
-                    self?.onListenerTerminated?()
-                }
+                guard let self, self.listeningProcess === terminatedProcess else { return }
+                self.listeningProcess = nil
+                self.listeningInputPipe = nil
+                // Also report an early exit before the first event. Otherwise
+                // the owner believes listening is active forever and never
+                // enters its retry/backoff path.
+                self.onListenerTerminated?()
             }
         }
 
         do {
-            try listeningProcess?.run()
+            try process.run()
         } catch {
             print("Failed to start listening process: \(error)")
-            listeningProcess = nil
+            if listeningProcess === process {
+                listeningProcess = nil
+                listeningInputPipe = nil
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.onListenerTerminated?()
+            }
         }
     }
 
@@ -279,6 +303,7 @@ public class MediaController {
         listeningProcess?.terminate()
         listeningProcess = nil
         listeningInputPipe = nil
+        lastTrackInfo = nil
         
         bufferLock.lock()
         defer { bufferLock.unlock() }
@@ -394,12 +419,16 @@ public class MediaController {
             shuffleMode: p.shuffleMode,
             repeatMode: p.repeatMode,
             playbackRate: p.playbackRate,
-            artwork: previous.payload.artwork
+            // Artwork is kept in the base64 payload and decoded lazily by
+            // TrackInfo.Payload. Do not force an NSImage allocation while
+            // preserving a frequent same-track media update.
+            artwork: nil
         )
         return TrackInfo(payload: merged)
     }
 
     private func restartListeningProcess() {
+        guard listeningProcess != nil else { return }
         (listeningProcess?.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
         listeningProcess?.terminate()
         listeningProcess = nil
@@ -414,5 +443,13 @@ public class MediaController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             self?.startListeningInternal()
         }
+    }
+}
+
+private enum MediaControllerError: LocalizedError {
+    case outputBufferLimitExceeded
+
+    var errorDescription: String? {
+        "MediaRemote helper output exceeded the safety buffer limit"
     }
 }

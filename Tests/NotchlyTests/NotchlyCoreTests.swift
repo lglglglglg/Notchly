@@ -125,6 +125,33 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertEqual(TimeGreetingPolicy.message(hour: 14), "下午好，忙里也要休息片刻。")
         XCTAssertEqual(TimeGreetingPolicy.message(hour: 20), "晚上好，愿你享受此刻。")
         XCTAssertEqual(TimeGreetingPolicy.message(hour: 1), "夜深了，早点睡觉。")
+
+        XCTAssertEqual(TimeGreetingPolicy.compactMessage(hour: 7), "早安")
+        XCTAssertEqual(TimeGreetingPolicy.compactMessage(hour: 10), "上午好")
+        XCTAssertEqual(TimeGreetingPolicy.compactMessage(hour: 14), "下午好")
+        XCTAssertEqual(TimeGreetingPolicy.compactMessage(hour: 20), "晚上好")
+        XCTAssertEqual(TimeGreetingPolicy.compactMessage(hour: 1), "夜深了")
+    }
+
+    func testCompactPlaybackUsesFixedWidthStatus() {
+        XCTAssertEqual(
+            CompactPlaybackPolicy.label(isPlaying: true, elapsed: 79.8, duration: 240),
+            "1:19"
+        )
+        XCTAssertEqual(
+            CompactPlaybackPolicy.label(isPlaying: true, elapsed: 3_723, duration: 7_200),
+            "62:03"
+        )
+        XCTAssertEqual(
+            CompactPlaybackPolicy.label(isPlaying: false, elapsed: 79, duration: 240),
+            "已暂停"
+        )
+        XCTAssertEqual(
+            CompactPlaybackPolicy.label(isPlaying: true, elapsed: 0, duration: 0),
+            "播放中"
+        )
+        XCTAssertEqual(CompactPlaybackPolicy.progress(elapsed: 60, duration: 240), 0.25)
+        XCTAssertEqual(CompactPlaybackPolicy.progress(elapsed: 300, duration: 240), 1)
     }
 
     func testMusicRefreshGateCoalescesStalledSnapshots() {

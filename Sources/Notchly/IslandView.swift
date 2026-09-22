@@ -102,16 +102,22 @@ struct IslandView: View {
 
                     visualizer
 
-                    HStack(spacing: 10) {
-                        Text(formatTime(state.musicElapsed))
-                        ProgressView(value: state.musicElapsed, total: max(1, state.musicDuration))
-                            .tint(.white)
-                            // A new song must replace this control instead of
-                            // interpolating the old near-finished value down
-                            // to the new track's opening position.
-                            .id("\(state.musicSource):\(state.musicTitle):\(state.musicArtist)")
-                            .transaction { $0.animation = nil }
-                        Text(state.musicDuration > 0 ? formatTime(state.musicDuration) : "--:--")
+                    TimelineView(.animation(
+                        minimumInterval: 0.25,
+                        paused: !state.isPlaying
+                    )) { context in
+                        let elapsed = state.elapsedTime(at: context.date)
+                        HStack(spacing: 10) {
+                            Text(formatTime(elapsed))
+                            ProgressView(value: elapsed, total: max(1, state.musicDuration))
+                                .tint(.white)
+                                // A new song must replace this control instead of
+                                // interpolating the old near-finished value down
+                                // to the new track's opening position.
+                                .id("\(state.musicSource):\(state.musicTitle):\(state.musicArtist)")
+                                .transaction { $0.animation = nil }
+                            Text(state.musicDuration > 0 ? formatTime(state.musicDuration) : "--:--")
+                        }
                     }
                     .font(.footnote.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -800,7 +806,10 @@ private struct HelloScriptPath: Shape {
 }
 
 struct SettingsView: View {
-    @ObservedObject private var state: IslandState
+    // Settings primarily observes AppSettings. Observing the entire IslandState
+    // caused this large TabView to rebuild for every playback/lyric refresh,
+    // accumulating SwiftUI Observation registrations during long sessions.
+    private let state: IslandState
     @ObservedObject private var settings: AppSettings
     @State private var aboutMessage: String?
 
@@ -1114,7 +1123,7 @@ struct SettingsView: View {
                     }
                 }
                 Divider()
-                SettingLine(title: "诊断信息", detail: "反馈问题时附上版本与系统信息") {
+                SettingLine(title: "诊断信息", detail: "反馈问题时附上运行状态与匿名计数") {
                     Button("复制") { copyDiagnosticInfo() }
                 }
                 if let aboutMessage {
@@ -1221,13 +1230,13 @@ struct SettingsView: View {
     }
 
     private var diagnosticInfo: String {
-        "Notchly \(appVersion) (\(buildNumber))\nmacOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
+        DiagnosticStore.shared.formattedSnapshot(appVersion: appVersion, buildNumber: buildNumber)
     }
 
     private func copyDiagnosticInfo() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(diagnosticInfo, forType: .string)
-        aboutMessage = "版本与系统信息已复制。"
+        aboutMessage = "诊断信息已复制，可直接粘贴到反馈中。"
     }
 
     private func copyFeedbackTemplate() {

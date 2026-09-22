@@ -37,7 +37,18 @@ public struct TrackInfo: Codable {
         public let repeatMode: RepeatMode?
         public let playbackRate: Double?
 
-        public let artwork: NSImage?
+        // Keep the decoded image out of the hot JSON-decoding path. MediaRemote
+        // can emit frequent position updates carrying the same artwork; eager
+        // NSImage creation for every event causes sustained main-thread and
+        // image-cache pressure. Callers that need it still get lazy decoding.
+        private let artworkOverride: NSImage?
+
+        public var artwork: NSImage? {
+            if let artworkOverride { return artworkOverride }
+            guard let base64String = artworkDataBase64,
+                  let data = Data(base64Encoded: base64String) else { return nil }
+            return NSImage(data: data)
+        }
 
         public var uniqueIdentifier: String {
             return "\(title ?? "")-\(artist ?? "")-\(album ?? "")"
@@ -101,7 +112,7 @@ public struct TrackInfo: Codable {
             self.shuffleMode = shuffleMode
             self.repeatMode = repeatMode
             self.playbackRate = playbackRate
-            self.artwork = artwork
+            self.artworkOverride = artwork
         }
 
         public init(from decoder: Decoder) throws {
@@ -138,12 +149,7 @@ public struct TrackInfo: Codable {
                 self.isPlaying = nil
             }
 
-            if let base64String = self.artworkDataBase64,
-               let data = Data(base64Encoded: base64String) {
-                self.artwork = NSImage(data: data)
-            } else {
-                self.artwork = nil
-            }
+            self.artworkOverride = nil
         }
     }
-} 
+}
