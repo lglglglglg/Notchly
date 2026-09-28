@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Notchly：为刘海 Mac 打造的原生音乐灵动岛。">
+  <meta name="description" content="Notchly：为刘海 Mac 打造的原生音乐灵动岛，集成播放控制、同步歌词、桌面歌词与常用状态。">
   <meta name="theme-color" content="#080911">
   <title>Notchly · macOS 音乐灵动岛</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%238b5cf6'/%3E%3Cstop offset='1' stop-color='%2338bdf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='18' fill='url(%23g)'/%3E%3Cpath d='M22 19v26m0-26 21 18V19m-21 26 21-18v18' fill='none' stroke='white' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -35,11 +35,20 @@
     .text-link { color:#d7d9e7; font-weight:650; font-size:.95rem; }
     .text-link:hover { color:#fff; }
     .download-note { width:100%; color:#898d9f; font-size:.79rem; }
-    .notch-demo { position:relative; width:min(100%,790px); height:90px; margin:59px auto 0; overflow:hidden; border:1px solid rgba(255,255,255,.11); border-radius:25px 25px 18px 18px; background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.015)); box-shadow:0 20px 70px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.08); }
-    .notch-demo::before { content:""; position:absolute; width:205px; height:38px; top:0; left:50%; transform:translateX(-50%); border-radius:0 0 18px 18px; background:#05050a; box-shadow:0 1px 0 rgba(255,255,255,.08); }
+    .notch-demo { position:relative; width:min(100%,790px); height:96px; margin:59px auto 0; overflow:hidden; border:1px solid rgba(255,255,255,.11); border-radius:25px 25px 18px 18px; background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.015)); box-shadow:0 20px 70px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.08); }
+    .notch-demo::before { content:""; position:absolute; width:205px; height:38px; top:0; left:50%; transform:translateX(-50%); border-radius:0 0 18px 18px; background:#05050a; box-shadow:0 1px 0 rgba(255,255,255,.08); z-index:2; }
     .notch-demo::after { content:""; position:absolute; inset:24px 18px 0; border-top:1px solid rgba(255,255,255,.06); }
-    .notch-status { position:absolute; inset:29px 0 0; display:flex; align-items:center; justify-content:center; gap:9px; color:#e6e8f0; font-size:.86rem; font-weight:650; }
-    .note { color:#72e6ca; font-size:1.2rem; }
+    .notch-status { position:absolute; top:10px; left:50%; width:min(calc(100% - 48px),570px); transform:translateX(-50%); display:grid; grid-template-columns:minmax(0,1fr) 205px minmax(0,1fr); align-items:center; color:#e6e8f0; font-size:.78rem; font-weight:650; z-index:1; }
+    .now-playing { display:flex; align-items:center; gap:9px; min-width:0; }
+    .album-art { width:28px; height:28px; flex:0 0 auto; border-radius:8px; background:radial-gradient(circle at 68% 28%,#73d7ff 0 8%,transparent 9%),linear-gradient(145deg,#7756ff,#15244a 55%,#10121e); box-shadow:0 0 16px rgba(124,88,255,.34); }
+    .track-copy { display:flex; flex-direction:column; align-items:flex-start; min-width:0; line-height:1.15; }
+    .track-copy strong { max-width:112px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f6f4ff; }
+    .track-copy span { color:#8f93a6; font-size:.68rem; margin-top:3px; }
+    .playback { grid-column:3; justify-self:end; display:flex; align-items:center; gap:8px; color:#a8acbb; font-variant-numeric:tabular-nums; }
+    .playback-line { width:72px; height:3px; overflow:hidden; border-radius:99px; background:rgba(255,255,255,.13); }
+    .playback-line::before { content:""; display:block; width:58%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#a56dff,#62c8ff); }
+    .desktop-lyric { position:absolute; left:24px; right:24px; bottom:12px; display:flex; align-items:center; justify-content:center; gap:9px; color:#d7daea; font-size:.78rem; }
+    .desktop-lyric::before { content:""; width:5px; height:5px; border-radius:50%; background:#9b7bff; box-shadow:0 0 12px #9b7bff; }
     section { padding:98px 0; }
     .section-head { display:flex; justify-content:space-between; align-items:end; gap:24px; margin-bottom:31px; }
     .kicker { margin:0 0 9px; color:#9f8cff; font-size:.78rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
@@ -72,7 +81,7 @@
     footer { display:flex; justify-content:space-between; gap:20px; padding:30px 0 42px; border-top:1px solid var(--line); color:#838797; font-size:.82rem; }
     footer div:last-child { display:flex; gap:17px; }
     footer a:hover { color:#fff; }
-    @media (max-width:760px) { .wrap { width:min(100% - 32px,1120px); } nav { height:70px; } .nav-links a:not(.nav-github) { display:none; } .hero { min-height:530px; padding-top:62px; } .notch-demo { height:74px; margin-top:46px; } .notch-demo::before { width:160px; height:31px; } .notch-status { inset-top:22px; } section { padding:70px 0; } .section-head { display:block; } .section-intro { margin-top:15px; } .feature-grid { grid-template-columns:1fr; } .card { min-height:0; } .icon { margin-bottom:23px; } .interaction { grid-template-columns:1fr; } .privacy { grid-template-columns:1fr; } footer { display:block; } footer div:last-child { margin-top:13px; } }
+    @media (max-width:760px) { .wrap { width:min(100% - 32px,1120px); } nav { height:70px; } .nav-links a:not(.nav-github) { display:none; } .hero { min-height:530px; padding-top:62px; } .notch-demo { height:84px; margin-top:46px; } .notch-demo::before { width:160px; height:31px; } .notch-status { top:8px; width:calc(100% - 24px); grid-template-columns:minmax(0,1fr) 160px minmax(0,1fr); } .track-copy strong { max-width:92px; } .track-copy span,.playback-line,.playback span:last-child { display:none; } .playback { gap:5px; } .desktop-lyric { bottom:10px; font-size:.72rem; } section { padding:70px 0; } .section-head { display:block; } .section-intro { margin-top:15px; } .feature-grid { grid-template-columns:1fr; } .card { min-height:0; } .icon { margin-bottom:23px; } .interaction { grid-template-columns:1fr; } .privacy { grid-template-columns:1fr; } footer { display:block; } footer div:last-child { margin-top:13px; } }
   </style>
 </head>
 <body>
@@ -90,16 +99,20 @@
   <main id="top">
     <section class="hero wrap" aria-labelledby="hero-title">
       <div>
-        <div class="eyebrow"><span class="pulse"></span>v0.13.14-alpha · macOS 14+</div>
+        <div class="eyebrow"><span class="pulse"></span>v0.14.4-alpha · macOS 14+</div>
         <h1 id="hero-title">让刘海，<span>成为你的音乐入口。</span></h1>
         <p class="hero-copy">Notchly 为刘海 Mac 打造。播放、歌词、专注与日常工具，安静地待在你随时可触及的地方。</p>
         <div class="hero-actions">
-          <a class="download" href="https://github.com/lglglglglg/Notchly/releases/download/v0.13.14-alpha/Notchly-0.13.14-alpha-universal.dmg">↓ 免费下载 Mac 版</a>
-          <a class="text-link" href="https://github.com/lglglglglg/Notchly/releases/tag/v0.13.14-alpha">查看本次更新 ↗</a>
+          <a class="download" href="https://github.com/lglglglglg/Notchly/releases/download/v0.14.4-alpha/Notchly-0.14.4-alpha-universal.dmg">↓ 免费下载 Mac 版</a>
+          <a class="text-link" href="https://github.com/lglglglglg/Notchly/releases/tag/v0.14.4-alpha">查看本次更新 ↗</a>
           <div class="download-note">Universal 安装包，兼容 Apple 芯片与 Intel Mac</div>
         </div>
-        <div class="notch-demo" aria-label="Notchly 空闲灵动岛示意">
-          <div class="notch-status"><span class="note">♪</span><span>未播放</span></div>
+        <div class="notch-demo" aria-label="Notchly 播放与歌词示意">
+          <div class="notch-status">
+            <div class="now-playing"><span class="album-art" aria-hidden="true"></span><span class="track-copy"><strong>正在播放</strong><span>Notchly Music</span></span></div>
+            <div class="playback"><span>1:42</span><span class="playback-line" aria-hidden="true"></span><span>3:28</span></div>
+          </div>
+          <div class="desktop-lyric">歌词、进度与常用状态，在需要时自然展开</div>
         </div>
       </div>
     </section>
@@ -110,18 +123,18 @@
         <p class="section-intro">每一项能力都围绕一个目标：减少打断，而不是再增加一个需要管理的窗口。</p>
       </div>
       <div class="feature-grid">
-        <article class="card"><div class="icon">♫</div><h3>多平台播放</h3><p>支持 Apple Music、Spotify 与主流国内播放器，实时呈现歌曲、封面与进度。</p></article>
-        <article class="card"><div class="icon">≋</div><h3>同步歌词</h3><p>网易云音乐优先、LRCLIB 回退；歌词、署名与时间校准始终保持连贯。</p></article>
-        <article class="card"><div class="icon">⌘</div><h3>自然交互</h3><p>悬停、点击菜单栏图标或快捷键即可展开；需要时出现，不需要时退回刘海。</p></article>
-        <article class="card"><div class="icon">◌</div><h3>原生动效</h3><p>频谱、波形、脉冲与宇宙尘埃均为本地模拟，不读取系统音频。</p></article>
-        <article class="card"><div class="icon">◎</div><h3>桌面歌词与专注</h3><p>独立桌面歌词、专注计时、日历、电池与临时文件托盘随手可用。</p></article>
-        <article class="card"><div class="icon">⌁</div><h3>本地优先</h3><p>没有账号、广告或遥测；设置、缓存与专注状态均由你的 Mac 本地处理。</p></article>
+        <article class="card"><div class="icon">♫</div><h3>多平台播放</h3><p>支持 Apple Music、Spotify、网易云音乐、QQ 音乐、酷狗、酷我与汽水音乐，展示歌曲、封面和进度。</p></article>
+        <article class="card"><div class="icon">≋</div><h3>同步与桌面歌词</h3><p>支持歌词源自带译文、本地缓存与 ±3 秒校准；桌面歌词提供单行、双行居中和 KTV 交替。</p></article>
+        <article class="card"><div class="icon">⌘</div><h3>自然交互</h3><p>悬停、菜单栏或 ⌘⇧Space 即可展开；支持智能、时间与极简收起状态，全屏时默认自动隐藏。</p></article>
+        <article class="card"><div class="icon">◌</div><h3>音乐记录与原生动效</h3><p>最近播放与收藏仅保存在本机；频谱、波形、脉冲与宇宙尘埃不读取系统音频。</p></article>
+        <article class="card"><div class="icon">◎</div><h3>常用状态与文件暂存</h3><p>电池、专注、下一日程、提醒事项与临时文件保持稳定入口，不再出现空白功能区。</p></article>
+        <article class="card"><div class="icon">⌁</div><h3>场景与多屏适配</h3><p>工作、音乐、演示和省电预设一键切换；支持内建屏、主屏与随鼠标显示策略。</p></article>
       </div>
     </section>
 
     <section class="wrap" aria-labelledby="interaction-title">
       <div class="interaction">
-        <div class="glass interaction-copy"><p class="kicker">Interaction</p><h2 id="interaction-title">不用寻找。<br>顺手就能到达。</h2><p>Notchly 不占用 Dock，不抢占桌面。它只在刘海附近提供一个稳定、熟悉的入口。</p></div>
+        <div class="glass interaction-copy"><p class="kicker">Interaction</p><h2 id="interaction-title">不用寻找。<br>顺手就能到达。</h2><p>Notchly 不占用 Dock，也不把歌词硬塞进有限的收起空间。播放与状态留在刘海附近，长歌词交给更舒展的桌面歌词。</p></div>
         <div class="glass shortcut-list" aria-label="常用操作">
           <div class="shortcut"><kbd>⌘ ⇧ Space</kbd><div><strong>展开或收起</strong><span>全局快捷键，随时切换灵动岛</span></div></div>
           <div class="shortcut"><kbd>鼠标悬停</kbd><div><strong>自然展开</strong><span>进入刘海区域即可查看当前状态</span></div></div>
@@ -131,7 +144,7 @@
     </section>
 
     <section id="privacy" class="wrap" aria-labelledby="privacy-title">
-      <div class="privacy"><div><p class="kicker">Privacy first</p><h2 id="privacy-title">你在听什么，只属于你。</h2><p>Notchly 不收集键盘、屏幕或系统音频；不提供广告、账号与遥测服务。需要访问的日历、自动化、通知和网络权限都有明确用途。</p></div><a class="privacy-link" href="https://github.com/lglglglglg/Notchly/blob/main/PRIVACY.md">阅读隐私政策 ↗</a></div>
+      <div class="privacy"><div><p class="kicker">Privacy first</p><h2 id="privacy-title">你在听什么，只属于你。</h2><p>Notchly 没有账号、广告或遥测，不读取键盘、屏幕或系统音频。设置、歌词缓存、播放记录、收藏、专注状态和文件暂存都保存在本机。</p></div><a class="privacy-link" href="https://github.com/lglglglglg/Notchly/blob/main/PRIVACY.md">阅读隐私政策 ↗</a></div>
     </section>
   </main>
 
