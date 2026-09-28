@@ -116,6 +116,17 @@ cd Notchly
 - [迭代路线与完成状态](docs/迭代路线与完成状态.md)
 - [赞助支持](docs/DONATE.md)
 
+## 社区
+
+本项目在 [LINUX DO](https://linux.do/) 社区进行开源，感谢社区佬友的交流、反馈与推广建议。
+
+## 致谢与第三方组件
+
+- [MediaRemoteAdapter](https://github.com/ejbills/mediaremote-adapter) — 提供 macOS MediaRemote 媒体状态与播放控制兼容能力，采用 BSD-3-Clause License。
+- 感谢 [ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) 对 macOS MediaRemote 兼容方案的探索与开源贡献。
+
+完整许可证与版权声明见 [`THIRD_PARTY_NOTICES.txt`](Notchly/THIRD_PARTY_NOTICES.txt)。
+
 ## 许可证与版权
 
 Notchly 基于 [MIT License](LICENSE) 开源。
