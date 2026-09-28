@@ -1,7 +1,7 @@
 # Notchly
 
 <p align="center">
-  <img src="Notchly/Assets.xcassets/AppIcon.appiconset/AppIcon.png" alt="Notchly Logo" width="128" height="128">
+  <img src="docs/assets/notchly-readme-icon.png" alt="Notchly Logo" width="128" height="128">
 </p>
 
 <p align="center">
