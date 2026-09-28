@@ -2,6 +2,74 @@ import AppKit
 import Darwin
 import Foundation
 
+enum MusicAdapterFailureKind: String, Sendable {
+    case playerUnavailable = "播放器不可用"
+    case invalidResponse = "响应无效"
+    case automation = "自动化调用失败"
+    case timeout = "调用超时"
+    case listenerInterrupted = "监听中断"
+    case unknown = "未知错误"
+}
+
+struct MusicAdapterHealth: Equatable, Sendable {
+    private(set) var attempts = 0
+    private(set) var successes = 0
+    private(set) var failures = 0
+    private(set) var consecutiveFailures = 0
+    private(set) var fallbacks = 0
+    private(set) var suppressedAttempts = 0
+    private(set) var lastSuccessAt: Date?
+    private(set) var lastFailureAt: Date?
+    private(set) var lastFailureKind: MusicAdapterFailureKind?
+    private(set) var cooldownUntil: Date?
+
+    mutating func recordAttempt() {
+        attempts += 1
+    }
+
+    mutating func recordSuccess(at date: Date = Date()) {
+        successes += 1
+        consecutiveFailures = 0
+        lastSuccessAt = date
+        cooldownUntil = nil
+    }
+
+    mutating func recordFailure(
+        _ kind: MusicAdapterFailureKind,
+        at date: Date = Date()
+    ) {
+        failures += 1
+        consecutiveFailures += 1
+        lastFailureAt = date
+        lastFailureKind = kind
+    }
+
+    mutating func recordFallback() {
+        fallbacks += 1
+    }
+
+    mutating func recordCooldown(until date: Date?) {
+        cooldownUntil = date
+    }
+
+    mutating func recordSuppressed(until date: Date) {
+        suppressedAttempts += 1
+        cooldownUntil = date
+    }
+}
+
+enum MusicAdapterFailureClassifier {
+    static func classify(_ error: Error) -> MusicAdapterFailureKind {
+        guard let error = error as? MusicServiceError else { return .unknown }
+        switch error {
+        case .notRunning: return .playerUnavailable
+        case .invalidResponse: return .invalidResponse
+        case .script: return .automation
+        case .timedOut: return .timeout
+        }
+    }
+}
+
 /// A local-only, privacy-conscious runtime snapshot used for bug reports.
 /// It intentionally records counters and health state, never titles, paths,
 /// account identifiers, calendar contents, or file names.
@@ -26,39 +94,83 @@ final class DiagnosticStore {
     private(set) var lastSuccessfulSnapshotAt: Date?
     private(set) var lastMediaRemoteError: String?
     private(set) var activeProvider = "无"
+    private(set) var activeMusicAdapter = "无"
     private(set) var mediaRemoteListening = false
+    private var adapterHealth = Dictionary(
+        uniqueKeysWithValues: MusicAdapterID.allCases.map { ($0, MusicAdapterHealth()) }
+    )
 
     private init() {}
 
     func recordMusicSnapshotRequest() { musicSnapshotRequests += 1 }
-    func recordMusicSnapshotSuccess(provider: String?) {
+    func recordMusicSnapshotSuccess(provider: String?, adapter: String? = nil) {
         musicSnapshotSuccesses += 1
         lastSuccessfulSnapshotAt = Date()
         if let provider, !provider.isEmpty { activeProvider = provider }
+        if let adapter, !adapter.isEmpty { activeMusicAdapter = adapter }
     }
     func recordMusicSnapshotFailure() { musicSnapshotFailures += 1 }
     func recordMediaRemoteEvent() {
         mediaRemoteEvents += 1
         lastMediaRemoteEventAt = Date()
+        recordAdapterAttempt(.mediaRemote)
     }
     func recordMediaRemotePublished(provider: String) {
         mediaRemotePublished += 1
         activeProvider = provider
+        activeMusicAdapter = MusicAdapterID.mediaRemote.title
+        recordAdapterSuccess(.mediaRemote)
     }
     func recordMediaRemoteDeduplicated() { mediaRemoteDeduplicated += 1 }
     func recordMediaRemoteInvalid(_ reason: String? = nil) {
         mediaRemoteInvalid += 1
         if let reason, !reason.isEmpty { lastMediaRemoteError = reason }
+        recordAdapterFailure(.mediaRemote, kind: .invalidResponse)
     }
     func recordListenerStarted() { listenerStarts += 1; mediaRemoteListening = true }
     func recordListenerStopped() { listenerStops += 1; mediaRemoteListening = false }
-    func recordListenerRestart() { listenerRestarts += 1 }
+    func recordListenerRestart() {
+        listenerRestarts += 1
+        recordAdapterFailure(.mediaRemote, kind: .listenerInterrupted)
+    }
     func recordArtworkCache(hit: Bool) {
         if hit { artworkCacheHits += 1 } else { artworkCacheMisses += 1 }
     }
     func setMediaRemoteListening(_ listening: Bool) { mediaRemoteListening = listening }
     func setActiveProvider(_ provider: String?) {
         activeProvider = provider?.isEmpty == false ? provider! : "无"
+        if provider?.isEmpty != false { activeMusicAdapter = "无" }
+    }
+
+    func recordAdapterAttempt(_ adapter: MusicAdapterID) {
+        updateHealth(for: adapter) { $0.recordAttempt() }
+    }
+
+    func recordAdapterSuccess(_ adapter: MusicAdapterID) {
+        updateHealth(for: adapter) { $0.recordSuccess() }
+    }
+
+    func recordAdapterFailure(_ adapter: MusicAdapterID, error: Error) {
+        recordAdapterFailure(adapter, kind: MusicAdapterFailureClassifier.classify(error))
+    }
+
+    func recordAdapterFailure(
+        _ adapter: MusicAdapterID,
+        kind: MusicAdapterFailureKind
+    ) {
+        updateHealth(for: adapter) { $0.recordFailure(kind) }
+    }
+
+    func recordAdapterFallback(from adapter: MusicAdapterID) {
+        updateHealth(for: adapter) { $0.recordFallback() }
+    }
+
+    func recordAdapterCooldown(_ adapter: MusicAdapterID, until date: Date?) {
+        updateHealth(for: adapter) { $0.recordCooldown(until: date) }
+    }
+
+    func recordAdapterSuppressed(_ adapter: MusicAdapterID, until date: Date) {
+        updateHealth(for: adapter) { $0.recordSuppressed(until: date) }
     }
 
     var uptime: TimeInterval { Date().timeIntervalSince(launchedAt) }
@@ -70,6 +182,12 @@ final class DiagnosticStore {
         let lastEvent = lastMediaRemoteEventAt.map(Self.formatDate) ?? "无"
         let lastSnapshot = lastSuccessfulSnapshotAt.map(Self.formatDate) ?? "无"
         let lastError = lastMediaRemoteError ?? "无"
+        let adapterHealthSummary = MusicAdapterID.allCases.map { adapter in
+            Self.formatAdapterHealth(
+                adapter: adapter,
+                health: adapterHealth[adapter] ?? MusicAdapterHealth()
+            )
+        }.joined(separator: "\n")
         let runtime = Self.runtimeUsage(uptime: uptime)
         #if arch(arm64)
         let architecture = "Apple Silicon"
@@ -92,9 +210,13 @@ final class DiagnosticStore {
 
         媒体状态
         当前播放器：\(activeProvider)
+        当前适配器：\(activeMusicAdapter)
         MediaRemote 监听：\(mediaRemoteListening ? "运行中" : "未监听")
         最近事件：\(lastEvent)
         最近成功快照：\(lastSnapshot)
+
+        适配器健康
+        \(adapterHealthSummary)
 
         运行计数
         音乐快照请求：\(musicSnapshotRequests)
@@ -119,6 +241,31 @@ final class DiagnosticStore {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)
+    }
+
+    private func updateHealth(
+        for adapter: MusicAdapterID,
+        update: (inout MusicAdapterHealth) -> Void
+    ) {
+        var health = adapterHealth[adapter] ?? MusicAdapterHealth()
+        update(&health)
+        adapterHealth[adapter] = health
+    }
+
+    private static func formatAdapterHealth(
+        adapter: MusicAdapterID,
+        health: MusicAdapterHealth
+    ) -> String {
+        let lastSuccess = health.lastSuccessAt.map(formatDate) ?? "无"
+        let lastFailure = health.lastFailureAt.map(formatDate) ?? "无"
+        let failureKind = health.lastFailureKind?.rawValue ?? "无"
+        let cooldownUntil = health.cooldownUntil.map(formatDate) ?? "无"
+        return """
+        \(adapter.title)：尝试 \(health.attempts) · 成功 \(health.successes) · 失败 \(health.failures) · 连续失败 \(health.consecutiveFailures) · 降级 \(health.fallbacks) · 限流 \(health.suppressedAttempts)
+          最近成功：\(lastSuccess)
+          最近失败：\(lastFailure)（\(failureKind)）
+          冷却至：\(cooldownUntil)
+        """
     }
 
     private static func formatDuration(_ duration: TimeInterval) -> String {

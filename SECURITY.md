@@ -2,12 +2,14 @@
 
 ## 报告安全问题
 
-请不要在公开 Issue 中发布可利用的漏洞细节、日志中的个人数据、证书、私钥或访问令牌。请先通过 `lixiaolongstephan@gmail.com` 联系韩十久工作室，并提供：
+请不要在公开 Issue 中发布可利用的漏洞细节、日志中的个人数据、证书、私钥或访问令牌。请使用 GitHub 的[私密漏洞报告](https://github.com/lglglglglg/Notchly/security/advisories/new)提交，并提供：
 
 - 受影响的版本和构建号；
 - macOS 版本与芯片架构；
 - 最小复现步骤和影响范围；
 - 必要的脱敏日志或截图。
+
+私密报告只用于安全漏洞和确实包含敏感信息的问题。普通功能异常、建议和已脱敏诊断信息仍请通过 [GitHub Issues](https://github.com/lglglglglg/Notchly/issues) 提交。
 
 我们会在确认问题后评估修复、缓解措施和公开说明时间。Notchly 当前为 Alpha 软件，正式发布前仍需完成 Developer ID 签名、公证和未参与开发设备的安装验收。
 

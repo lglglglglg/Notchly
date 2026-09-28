@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -13,6 +14,7 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
     private let presentation = DesktopLyricsPresentation()
     private var settingsObserver: NSObjectProtocol?
     private var positionResetObserver: NSObjectProtocol?
+    private var translationAvailabilityObserver: AnyCancellable?
     private var pointerTimer: Timer?
     private var isRestoringPosition = false
 
@@ -54,6 +56,12 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.moveToDefaultPosition() }
         }
+        translationAvailabilityObserver = state.$hasTranslatedLyrics
+            .removeDuplicates()
+            .sink { [weak self, weak state] _ in
+                guard let self, let state else { return }
+                self.applySettings(state.settings)
+            }
 
         applySettings(state.settings)
         restorePositionOrUseDefault()
@@ -70,12 +78,16 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
             NotificationCenter.default.removeObserver(positionResetObserver)
             self.positionResetObserver = nil
         }
+        translationAvailabilityObserver?.cancel()
+        translationAvailabilityObserver = nil
         panel.delegate = nil
         panel.orderOut(nil)
     }
 
     private func applySettings(_ settings: AppSettings) {
-        let height: CGFloat = settings.desktopLyricsShowsNextLine
+        let showsSecondaryLine = settings.desktopLyricsShowsNextLine
+            || (settings.showsTranslatedLyrics && state.hasTranslatedLyrics)
+        let height: CGFloat = showsSecondaryLine
             ? max(96, settings.desktopLyricsFontSize * 1.55 + 38)
             : max(72, settings.desktopLyricsFontSize + 38)
         let oldCenter = panel.frame.center
@@ -222,19 +234,29 @@ private struct DesktopLyricsView: View {
                 }
                     .frame(
                         maxWidth: .infinity,
-                        alignment: settings.desktopLyricsShowsNextLine ? .leading : .center
+                        alignment: showsDesktopSecondaryLine ? .leading : .center
                     )
                     .id(state.currentLyricText)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
 
-                if settings.desktopLyricsShowsNextLine, !state.nextLyricText.isEmpty {
-                    Text(state.nextLyricText)
-                        .font(.system(size: max(13, settings.desktopLyricsFontSize * 0.60), weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.42))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .shadow(color: .black.opacity(0.6), radius: 2, y: 1)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                if !desktopSecondaryText.isEmpty {
+                    HStack(spacing: 6) {
+                        if desktopSecondaryIsTranslation {
+                            Text("译")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(accentColor.opacity(0.74))
+                        }
+                        Text(desktopSecondaryText)
+                            .font(.system(size: max(13, settings.desktopLyricsFontSize * 0.60), weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(desktopSecondaryIsTranslation ? 0.58 : 0.42))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .shadow(color: .black.opacity(0.6), radius: 2, y: 1)
+                    }
+                    .frame(
+                        maxWidth: .infinity,
+                        alignment: desktopSecondaryIsTranslation ? .leading : .trailing
+                    )
                 }
             }
             .padding(.horizontal, 26)
@@ -358,6 +380,19 @@ private struct DesktopLyricsView: View {
         if state.isLyricInterlude { return "♪" }
         if state.hasMusic { return state.musicTitle }
         return "播放音乐后显示歌词"
+    }
+
+    private var desktopSecondaryIsTranslation: Bool {
+        settings.showsTranslatedLyrics && !state.currentLyricTranslation.isEmpty
+    }
+
+    private var desktopSecondaryText: String {
+        if desktopSecondaryIsTranslation { return state.currentLyricTranslation }
+        return settings.desktopLyricsShowsNextLine ? state.nextLyricText : ""
+    }
+
+    private var showsDesktopSecondaryLine: Bool {
+        desktopSecondaryIsTranslation || settings.desktopLyricsShowsNextLine
     }
 }
 

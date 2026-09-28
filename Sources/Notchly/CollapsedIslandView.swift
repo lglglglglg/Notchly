@@ -15,8 +15,13 @@ final class NotchPresentation: ObservableObject {
 
     let panelSize = NSSize(width: 580, height: 272)
 
-    func compactSize(hasMusic: Bool, isPomodoroRunning: Bool) -> NSSize {
+    func compactSize(
+        mode: CompactDisplayMode,
+        hasMusic: Bool,
+        isPomodoroRunning: Bool
+    ) -> NSSize {
         let wingWidth = NotchLayoutPolicy.compactWingWidth(
+            mode: mode,
             hasMusic: hasMusic,
             isPomodoroRunning: isPomodoroRunning
         )
@@ -34,9 +39,14 @@ final class NotchPresentation: ObservableObject {
         NotchLayoutPolicy.expandedContentTopInset(notchHeight: notchHeight)
     }
 
-    func surfaceSize(hasMusic: Bool, isPomodoroRunning: Bool) -> NSSize {
+    func surfaceSize(
+        mode: CompactDisplayMode,
+        hasMusic: Bool,
+        isPomodoroRunning: Bool
+    ) -> NSSize {
         switch phase {
-        case .compact: compactSize(hasMusic: hasMusic, isPomodoroRunning: isPomodoroRunning)
+        case .compact:
+            compactSize(mode: mode, hasMusic: hasMusic, isPomodoroRunning: isPomodoroRunning)
         case .expanded: expandedSize(hasMusic: hasMusic)
         }
     }
@@ -44,12 +54,14 @@ final class NotchPresentation: ObservableObject {
 
 struct NotchIslandView: View {
     @ObservedObject var state: IslandState
+    @ObservedObject private var settings: AppSettings
     @ObservedObject var presentation: NotchPresentation
     let showFull: () -> Void
     let collapse: () -> Void
 
     init(state: IslandState, presentation: NotchPresentation, showFull: @escaping () -> Void, collapse: @escaping () -> Void) {
         self.state = state
+        settings = state.settings
         self.presentation = presentation
         self.showFull = showFull
         self.collapse = collapse
@@ -61,6 +73,7 @@ struct NotchIslandView: View {
             expansionProgress: presentation.phase.rawValue
         )
         let surfaceSize = presentation.surfaceSize(
+            mode: settings.compactDisplayMode,
             hasMusic: state.hasMusic,
             isPomodoroRunning: state.isPomodoroRunning
         )
@@ -118,6 +131,7 @@ struct NotchIslandView: View {
             }
             .animation(.spring(response: 0.30, dampingFraction: 0.90), value: presentation.phase)
             .animation(.spring(response: 0.30, dampingFraction: 0.90), value: state.hasMusic)
+            .animation(.spring(response: 0.30, dampingFraction: 0.90), value: settings.compactDisplayMode)
         }
         .frame(width: presentation.panelSize.width, height: presentation.panelSize.height, alignment: .top)
         .preferredColorScheme(.dark)
@@ -125,25 +139,19 @@ struct NotchIslandView: View {
 
     private var compactStatus: some View {
         let size = presentation.compactSize(
+            mode: settings.compactDisplayMode,
             hasMusic: state.hasMusic,
             isPomodoroRunning: state.isPomodoroRunning
         )
         let wingWidth = NotchLayoutPolicy.compactWingWidth(
+            mode: settings.compactDisplayMode,
             hasMusic: state.hasMusic,
             isPomodoroRunning: state.isPomodoroRunning
         )
 
         return HStack(spacing: 0) {
             Group {
-                if state.hasMusic {
-                    compactArtwork
-                } else if state.isPomodoroRunning {
-                    Image(systemName: "timer").foregroundStyle(.orange)
-                } else {
-                    Image(systemName: "music.note")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(state.settings.islandAccentTheme.accent)
-                }
+                compactLeadingStatus
             }
             .padding(.trailing, 4)
             .frame(width: wingWidth, height: size.height, alignment: .trailing)
@@ -152,58 +160,7 @@ struct NotchIslandView: View {
                 .frame(width: presentation.notchWidth, height: size.height)
 
             Group {
-                if state.isPomodoroRunning {
-                    if state.hasMusic {
-                        HStack(spacing: 4) {
-                            Image(systemName: "timer")
-                            Text(state.timerText).monospacedDigit()
-                        }
-                        .foregroundStyle(.orange)
-                    } else {
-                        Text(state.timerText).monospacedDigit()
-                    }
-                } else if state.hasMusic {
-                    TimelineView(.animation(
-                        minimumInterval: 1,
-                        paused: !state.isPlaying
-                    )) { context in
-                        let elapsed = state.elapsedTime(at: context.date)
-                        VStack(spacing: 3) {
-                            Text(CompactPlaybackPolicy.label(
-                                isPlaying: state.isPlaying,
-                                elapsed: elapsed,
-                                duration: state.musicDuration
-                            ))
-                            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(state.isPlaying ? 0.86 : 0.58))
-                            .monospacedDigit()
-                            .lineLimit(1)
-
-                            if state.isPlaying, state.musicDuration > 0 {
-                                let progress = CompactPlaybackPolicy.progress(
-                                    elapsed: elapsed,
-                                    duration: state.musicDuration
-                                )
-                                Capsule()
-                                    .fill(.white.opacity(0.14))
-                                    .frame(width: 28, height: 1.5)
-                                    .overlay(alignment: .leading) {
-                                        Capsule()
-                                            .fill(state.settings.islandAccentTheme.accent)
-                                            .frame(width: 28 * progress, height: 1.5)
-                                    }
-                            }
-                        }
-                        .help([state.musicTitle, state.musicArtist]
-                            .filter { !$0.isEmpty }
-                            .joined(separator: " · "))
-                    }
-                } else {
-                    TimelineView(.periodic(from: .now, by: 60)) { context in
-                        Text(TimeGreetingPolicy.compactMessage(at: context.date))
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
-                }
+                compactTrailingStatus
             }
             .font(.caption2.weight(.semibold))
             .padding(.leading, 4)
@@ -211,6 +168,145 @@ struct NotchIslandView: View {
         }
         .frame(width: size.width, height: size.height)
         .zIndex(3)
+    }
+
+    @ViewBuilder
+    private var compactLeadingStatus: some View {
+        if state.hasMusic {
+            compactArtwork
+        } else if state.isPomodoroRunning {
+            Image(systemName: "timer")
+                .foregroundStyle(.orange)
+        } else if settings.compactDisplayMode != .minimal {
+            Image(systemName: settings.compactDisplayMode == .time ? "clock" : "music.note")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(settings.islandAccentTheme.accent)
+        }
+    }
+
+    @ViewBuilder
+    private var compactTrailingStatus: some View {
+        switch settings.compactDisplayMode {
+        case .smart:
+            compactSmartStatus
+        case .lyrics:
+            compactLyricStatus
+        case .time:
+            compactTimeStatus
+        case .minimal:
+            compactMinimalStatus
+        }
+    }
+
+    @ViewBuilder
+    private var compactSmartStatus: some View {
+        if state.isPomodoroRunning {
+            compactFocusStatus(showsIcon: state.hasMusic)
+        } else if state.hasMusic {
+            compactPlaybackStatus
+        } else {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                Text(TimeGreetingPolicy.compactMessage(at: context.date))
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var compactLyricStatus: some View {
+        if state.hasMusic {
+            Text(CompactDisplayPolicy.lyricLabel(
+                currentLyric: state.currentLyricText,
+                isPlaying: state.isPlaying
+            ))
+            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white.opacity(state.isPlaying ? 0.86 : 0.58))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .truncationMode(.tail)
+            .help(state.currentLyricText.isEmpty ? state.musicTitle : state.currentLyricText)
+        } else if state.isPomodoroRunning {
+            compactFocusStatus(showsIcon: false)
+        } else {
+            Text("暂无歌词")
+                .foregroundStyle(.white.opacity(0.52))
+        }
+    }
+
+    @ViewBuilder
+    private var compactTimeStatus: some View {
+        if state.isPomodoroRunning {
+            compactFocusStatus(showsIcon: state.hasMusic)
+        } else {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                Text(CompactDisplayPolicy.clockLabel(at: context.date))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.78))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var compactMinimalStatus: some View {
+        if state.isPomodoroRunning {
+            Circle()
+                .fill(.orange)
+                .frame(width: 6, height: 6)
+                .help("专注计时 (state.timerText)")
+        } else if state.hasMusic {
+            Image(systemName: state.isPlaying ? "play.fill" : "pause.fill")
+                .font(.system(size: 7, weight: .bold))
+                .foregroundStyle(state.isPlaying ? settings.islandAccentTheme.accent : .white.opacity(0.48))
+                .help(state.isPlaying ? "正在播放" : "已暂停")
+        }
+    }
+
+    private var compactPlaybackStatus: some View {
+        TimelineView(.animation(
+            minimumInterval: 1,
+            paused: !state.isPlaying
+        )) { context in
+            let elapsed = state.elapsedTime(at: context.date)
+            VStack(spacing: 3) {
+                Text(CompactPlaybackPolicy.label(
+                    isPlaying: state.isPlaying,
+                    elapsed: elapsed,
+                    duration: state.musicDuration
+                ))
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(state.isPlaying ? 0.86 : 0.58))
+                .monospacedDigit()
+                .lineLimit(1)
+
+                if state.isPlaying, state.musicDuration > 0 {
+                    let progress = CompactPlaybackPolicy.progress(
+                        elapsed: elapsed,
+                        duration: state.musicDuration
+                    )
+                    Capsule()
+                        .fill(.white.opacity(0.14))
+                        .frame(width: 28, height: 1.5)
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(settings.islandAccentTheme.accent)
+                                .frame(width: 28 * progress, height: 1.5)
+                        }
+                }
+            }
+            .help([state.musicTitle, state.musicArtist]
+                .filter { !$0.isEmpty }
+                .joined(separator: " · "))
+        }
+    }
+
+    private func compactFocusStatus(showsIcon: Bool) -> some View {
+        HStack(spacing: 4) {
+            if showsIcon {
+                Image(systemName: "timer")
+            }
+            Text(state.timerText).monospacedDigit()
+        }
+        .foregroundStyle(.orange)
     }
 
     @ViewBuilder
@@ -309,8 +405,21 @@ private struct NotchSurface: Shape {
 /// camera housing. The old layout used the large curve radius as a content
 /// inset, which left an unnecessarily tall empty header above the player.
 enum NotchLayoutPolicy {
-    static func compactWingWidth(hasMusic: Bool, isPomodoroRunning: Bool) -> CGFloat {
-        hasMusic && isPomodoroRunning ? 72 : 48
+    static func compactWingWidth(
+        mode: CompactDisplayMode,
+        hasMusic: Bool,
+        isPomodoroRunning: Bool
+    ) -> CGFloat {
+        switch mode {
+        case .smart:
+            hasMusic && isPomodoroRunning ? 72 : 48
+        case .lyrics:
+            hasMusic ? 82 : (isPomodoroRunning ? 58 : 52)
+        case .time:
+            isPomodoroRunning && hasMusic ? 72 : 52
+        case .minimal:
+            32
+        }
     }
 
     static func expandedContentTopInset(notchHeight: CGFloat) -> CGFloat {
@@ -339,5 +448,18 @@ enum CompactPlaybackPolicy {
     static func progress(elapsed: TimeInterval, duration: TimeInterval) -> CGFloat {
         guard elapsed.isFinite, duration.isFinite, duration > 0 else { return 0 }
         return min(max(elapsed / duration, 0), 1)
+    }
+}
+
+enum CompactDisplayPolicy {
+    static func lyricLabel(currentLyric: String, isPlaying: Bool) -> String {
+        let lyric = currentLyric.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lyric.isEmpty else { return isPlaying ? "等待歌词" : "已暂停" }
+        return lyric
+    }
+
+    static func clockLabel(at date: Date, calendar: Calendar = .current) -> String {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
 }

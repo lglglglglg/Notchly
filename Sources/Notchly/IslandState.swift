@@ -6,6 +6,7 @@ import SwiftUI
 final class IslandState: ObservableObject {
     let settings: AppSettings
     let pocket: PocketService
+    let musicLibrary: MusicLibraryService
     @Published var isPomodoroRunning = false
     @Published var remainingSeconds = 25 * 60
     @Published private(set) var musicTitle = "正在等待音乐"
@@ -23,8 +24,11 @@ final class IslandState: ObservableObject {
     @Published private(set) var isLoadingLyrics = false
     @Published private(set) var lyricSource: LyricSource?
     @Published private(set) var lyricLookupCompleted = false
+    @Published private(set) var hasTranslatedLyrics = false
     @Published private(set) var currentLyricText = ""
+    @Published private(set) var currentLyricTranslation = ""
     @Published private(set) var nextLyricText = ""
+    @Published private(set) var nextLyricTranslation = ""
     @Published private(set) var isLyricInterlude = false
     @Published private(set) var currentLyricStart: TimeInterval = 0
     @Published private(set) var currentLyricEnd: TimeInterval = 0
@@ -34,6 +38,9 @@ final class IslandState: ObservableObject {
     @Published private(set) var calendarTitle = "连接日历后显示下一项"
     @Published private(set) var calendarSubtitle = "你的日程只会保留在这台 Mac 上"
     @Published private(set) var isLoadingCalendar = false
+    @Published private(set) var reminderTitle = "启用后显示下一条提醒"
+    @Published private(set) var reminderSubtitle = "提醒内容只会在这台 Mac 上读取"
+    @Published private(set) var isLoadingReminder = false
     @Published private(set) var wellnessReminderSchedule = WellnessReminderSchedule.idle
     @Published private(set) var isIslandPopoverPresented = false
     var onMusicRefreshPolicyChanged: (@MainActor () -> Void)?
@@ -56,6 +63,7 @@ final class IslandState: ObservableObject {
     private let artworkCacheLimit = 20
     private let artworkCacheCostLimit = 64 * 1_024 * 1_024
     private let calendarService = CalendarService()
+    private let reminderService = ReminderService()
     private let notificationService = NotificationService()
     private let musicService = MusicService()
     private let lyricsService = LyricsService()
@@ -66,6 +74,7 @@ final class IslandState: ObservableObject {
     init(settings: AppSettings) {
         self.settings = settings
         pocket = PocketService(settings: settings)
+        musicLibrary = MusicLibraryService()
         musicService.onSystemPlaybackChanged = { [weak self] in
             self?.refreshMusic()
         }
@@ -200,6 +209,10 @@ final class IslandState: ObservableObject {
         }
     }
 
+    func connectReminders() {
+        refreshReminders(requestingAccessIfNeeded: true)
+    }
+
     func refreshMusic() {
         // AppleScript does not reliably stop when its surrounding Swift task is
         // cancelled. Starting a replacement every timer tick would therefore
@@ -263,6 +276,7 @@ final class IslandState: ObservableObject {
         if isLoadingLyrics { isLoadingLyrics = false }
         if lyricSource != nil { lyricSource = nil }
         if lyricLookupCompleted { lyricLookupCompleted = false }
+        if hasTranslatedLyrics { hasTranslatedLyrics = false }
         publishLyrics(at: Date())
         updateLyricTicker()
         onMusicRefreshPolicyChanged?()
@@ -309,6 +323,14 @@ final class IslandState: ObservableObject {
 
         guard !isSameTrack else { return }
         artworkKey = newTrackKey
+        musicLibrary.record(
+            title: playback.title,
+            artist: playback.artist,
+            album: playback.album,
+            source: playback.source,
+            duration: playback.duration,
+            at: now
+        )
         loadLyrics(for: playback, key: newTrackKey)
         artworkTask?.cancel()
         if let data = playback.artworkData, let image = NSImage(data: data) {
@@ -427,6 +449,7 @@ final class IslandState: ObservableObject {
     private func loadLyrics(for playback: MusicPlayback, key: String) {
         lyricsTask?.cancel()
         lyricLines = []
+        hasTranslatedLyrics = false
         isLoadingLyrics = true
         lyricSource = nil
         lyricLookupCompleted = false
@@ -439,6 +462,7 @@ final class IslandState: ObservableObject {
             )
             guard !Task.isCancelled, self.artworkKey == key else { return }
             self.lyricLines = result.lines
+            self.hasTranslatedLyrics = result.lines.contains { !($0.translation?.isEmpty ?? true) }
             self.lyricSource = result.source
             self.lyricLookupCompleted = true
             self.isLoadingLyrics = false
@@ -467,20 +491,38 @@ final class IslandState: ObservableObject {
 
     private func publishLyrics(at date: Date) {
         guard !lyricLines.isEmpty else {
-            setPublishedLyrics(current: "", next: "", start: 0, end: 0, isInterlude: false)
+            setPublishedLyrics(
+                current: "",
+                currentTranslation: "",
+                next: "",
+                nextTranslation: "",
+                start: 0,
+                end: 0,
+                isInterlude: false
+            )
             return
         }
         let elapsed = elapsedTime(at: date) + settings.lyricOffset
         let currentIndex = lyricLines.lastIndex { $0.time <= elapsed + 0.12 }
         let candidate = currentIndex.map { lyricLines[$0].text } ?? ""
         let followingStart = (currentIndex ?? -1) + 1
-        let next = followingStart < lyricLines.count
-            ? lyricLines[followingStart...].first(where: { $0.text != candidate })?.text ?? ""
-            : ""
+        let nextLine = followingStart < lyricLines.count
+            ? lyricLines[followingStart...].first(where: { $0.text != candidate })
+            : nil
+        let next = nextLine?.text ?? ""
+        let nextTranslation = nextLine?.translation ?? ""
         guard let currentIndex else {
             // Before the first timed lyric, leave the lyric card quiet instead
             // of previewing a line early or implying that matching failed.
-            setPublishedLyrics(current: "", next: "", start: 0, end: 0, isInterlude: false)
+            setPublishedLyrics(
+                current: "",
+                currentTranslation: "",
+                next: "",
+                nextTranslation: "",
+                start: 0,
+                end: 0,
+                isInterlude: false
+            )
             return
         }
 
@@ -493,13 +535,23 @@ final class IslandState: ObservableObject {
             && (nextLineStart == nil || elapsed < (nextLineStart ?? .greatestFiniteMagnitude) - 0.08)
 
         if isInterlude {
-            setPublishedLyrics(current: "", next: next, start: 0, end: 0, isInterlude: true)
+            setPublishedLyrics(
+                current: "",
+                currentTranslation: "",
+                next: next,
+                nextTranslation: nextTranslation,
+                start: 0,
+                end: 0,
+                isInterlude: true
+            )
             return
         }
 
         setPublishedLyrics(
             current: candidate,
+            currentTranslation: line.translation ?? "",
             next: next,
+            nextTranslation: nextTranslation,
             start: start,
             end: end,
             isInterlude: false
@@ -545,13 +597,21 @@ final class IslandState: ObservableObject {
 
     private func setPublishedLyrics(
         current: String,
+        currentTranslation: String,
         next: String,
+        nextTranslation: String,
         start: TimeInterval,
         end: TimeInterval,
         isInterlude: Bool
     ) {
         if currentLyricText != current { currentLyricText = current }
+        if self.currentLyricTranslation != currentTranslation {
+            self.currentLyricTranslation = currentTranslation
+        }
         if nextLyricText != next { nextLyricText = next }
+        if self.nextLyricTranslation != nextTranslation {
+            self.nextLyricTranslation = nextTranslation
+        }
         if currentLyricStart != start { currentLyricStart = start }
         if currentLyricEnd != end { currentLyricEnd = end }
         if self.isLyricInterlude != isInterlude { self.isLyricInterlude = isInterlude }
@@ -577,6 +637,17 @@ final class IslandState: ObservableObject {
 
     func openMusicApp() {
         musicService.openActivePlayer()
+    }
+
+    func toggleCurrentTrackFavorite() {
+        guard hasMusic else { return }
+        musicLibrary.toggleFavorite(
+            title: musicTitle,
+            artist: musicArtist,
+            album: musicAlbum,
+            source: musicSource,
+            duration: musicDuration
+        )
     }
 
     private func performMusicAction(_ action: @escaping () async throws -> Void) {
@@ -606,6 +677,8 @@ final class IslandState: ObservableObject {
             musicActionMessage = "未检测到受支持的播放器，请先打开并播放音乐"
         case .invalidResponse:
             musicActionMessage = "播放器返回的信息不完整，请稍后重试"
+        case .timedOut:
+            musicActionMessage = "播放器响应超时，请稍后重试"
         case let .script(message):
             musicActionMessage = "无法控制\(musicSource)：\(message)"
         case .none:
@@ -626,22 +699,54 @@ final class IslandState: ObservableObject {
     }
 
     func refreshAuthorizedServices() {
-        refreshPower()
+        if settings.isIslandCardEnabled(.power) {
+            refreshPower()
+        }
         refreshMusic()
-        guard calendarService.hasAuthorizedAccess, !isLoadingCalendar else { return }
-        isLoadingCalendar = true
+        if settings.isIslandCardEnabled(.calendar),
+           calendarService.hasAuthorizedAccess,
+           !isLoadingCalendar {
+            isLoadingCalendar = true
+            Task {
+                defer { isLoadingCalendar = false }
+                do {
+                    if let event = try await calendarService.nextEvent(requestingAccessIfNeeded: false) {
+                        calendarTitle = event.title ?? "未命名日程"
+                        calendarSubtitle = event.startDate.notchlyRelativeDate
+                    } else {
+                        calendarTitle = "未来 7 天没有日程"
+                        calendarSubtitle = "享受一段安静的时间吧"
+                    }
+                } catch {
+                    // Keep the last successfully loaded event when a refresh fails.
+                }
+            }
+        }
+        if !hasMusic,
+           settings.isIslandCardEnabled(.reminders),
+           reminderService.hasAuthorizedAccess {
+            refreshReminders(requestingAccessIfNeeded: false)
+        }
+    }
+
+    private func refreshReminders(requestingAccessIfNeeded: Bool) {
+        guard !isLoadingReminder else { return }
+        isLoadingReminder = true
         Task {
-            defer { isLoadingCalendar = false }
+            defer { isLoadingReminder = false }
             do {
-                if let event = try await calendarService.nextEvent(requestingAccessIfNeeded: false) {
-                    calendarTitle = event.title ?? "未命名日程"
-                    calendarSubtitle = event.startDate.notchlyRelativeDate
+                if let reminder = try await reminderService.nextReminder(
+                    requestingAccessIfNeeded: requestingAccessIfNeeded
+                ) {
+                    reminderTitle = reminder.title
+                    reminderSubtitle = ReminderSelectionPolicy.subtitle(dueDate: reminder.dueDate)
                 } else {
-                    calendarTitle = "未来 7 天没有日程"
-                    calendarSubtitle = "享受一段安静的时间吧"
+                    reminderTitle = "没有未完成提醒"
+                    reminderSubtitle = "今天可以轻松一点"
                 }
             } catch {
-                // Keep the last successfully loaded event when a refresh fails.
+                reminderTitle = "无法读取提醒事项"
+                reminderSubtitle = "请在系统设置中允许 Notchly 访问提醒事项"
             }
         }
     }

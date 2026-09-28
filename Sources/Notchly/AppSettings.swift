@@ -20,6 +20,139 @@ enum MusicVisualizerStyle: String, CaseIterable, Identifiable {
 
 }
 
+enum CompactDisplayMode: String, CaseIterable, Identifiable {
+    case smart
+    case lyrics
+    case time
+    case minimal
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .smart: "智能"
+        case .lyrics: "歌词"
+        case .time: "时间"
+        case .minimal: "极简"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .smart: "专注计时优先，其次显示播放进度或问候"
+        case .lyrics: "显示当前歌词，无歌词时使用简短状态"
+        case .time: "显示当前时间，专注时显示剩余时间"
+        case .minimal: "仅保留封面与播放状态符号"
+        }
+    }
+}
+
+enum IslandDisplayStrategy: String, CaseIterable, Identifiable {
+    case builtInPreferred
+    case primary
+    case followsPointer
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .builtInPreferred: "内建屏"
+        case .primary: "主屏"
+        case .followsPointer: "随鼠标"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .builtInPreferred: "优先显示在带刘海的内建屏幕"
+        case .primary: "固定显示在 macOS 主菜单栏所在屏幕"
+        case .followsPointer: "鼠标跨屏后，收起岛移到鼠标所在屏幕"
+        }
+    }
+}
+
+enum IslandScenePreset: String, CaseIterable, Identifiable {
+    case custom
+    case work
+    case music
+    case presentation
+    case powerSaving
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .custom: "自定义"
+        case .work: "工作"
+        case .music: "音乐"
+        case .presentation: "演示"
+        case .powerSaving: "省电"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .custom: "保留当前逐项设置，不主动改变界面或后台刷新策略。"
+        case .work: "使用智能收起状态，保留全部效率卡片，并关闭桌面歌词。"
+        case .music: "歌词优先，启用桌面歌词与完整音乐动效，保留全部卡片。"
+        case .presentation: "关闭悬停展开和桌面歌词，全屏时隐藏，并使用极简收起状态。"
+        case .powerSaving: "停止可选卡片轮询与装饰动效，降低媒体轮询频率并使用极简状态。"
+        }
+    }
+
+    var configuration: IslandSceneConfiguration? {
+        switch self {
+        case .custom:
+            nil
+        case .work:
+            IslandSceneConfiguration(
+                compactDisplayMode: .smart,
+                expandsOnHover: true,
+                hidesIslandInFullScreen: true,
+                musicVisualizerStyle: .spectrum,
+                showsDesktopLyrics: false,
+                enabledCards: IslandCardRegistry.defaultEnabledIDs.union([.reminders])
+            )
+        case .music:
+            IslandSceneConfiguration(
+                compactDisplayMode: .lyrics,
+                expandsOnHover: true,
+                hidesIslandInFullScreen: true,
+                musicVisualizerStyle: .cosmicDust,
+                showsDesktopLyrics: true,
+                enabledCards: IslandCardRegistry.defaultEnabledIDs
+            )
+        case .presentation:
+            IslandSceneConfiguration(
+                compactDisplayMode: .minimal,
+                expandsOnHover: false,
+                hidesIslandInFullScreen: true,
+                musicVisualizerStyle: .pulse,
+                showsDesktopLyrics: false,
+                enabledCards: []
+            )
+        case .powerSaving:
+            IslandSceneConfiguration(
+                compactDisplayMode: .minimal,
+                expandsOnHover: true,
+                hidesIslandInFullScreen: true,
+                musicVisualizerStyle: .pulse,
+                showsDesktopLyrics: false,
+                enabledCards: []
+            )
+        }
+    }
+}
+
+struct IslandSceneConfiguration: Equatable {
+    let compactDisplayMode: CompactDisplayMode
+    let expandsOnHover: Bool
+    let hidesIslandInFullScreen: Bool
+    let musicVisualizerStyle: MusicVisualizerStyle
+    let showsDesktopLyrics: Bool
+    let enabledCards: Set<IslandCardID>
+}
+
 enum LyricSyncPolicy {
     static func adjustedOffset(_ current: Double, by adjustment: Double) -> Double {
         min(max(current + adjustment, -3), 3)
@@ -95,20 +228,49 @@ final class AppSettings: ObservableObject {
     static let desktopLyricsDidChange = Notification.Name("Notchly.desktopLyricsDidChange")
     static let desktopLyricsPositionReset = Notification.Name("Notchly.desktopLyricsPositionReset")
     static let wellnessRemindersDidChange = Notification.Name("Notchly.wellnessRemindersDidChange")
+    static let islandFullScreenBehaviorDidChange = Notification.Name("Notchly.islandFullScreenBehaviorDidChange")
+    static let islandDisplayStrategyDidChange = Notification.Name("Notchly.islandDisplayStrategyDidChange")
+    static let islandCardsDidChange = Notification.Name("Notchly.islandCardsDidChange")
+    static let islandSceneDidChange = Notification.Name("Notchly.islandSceneDidChange")
     @Published private(set) var launchesAtLogin: Bool
     @Published private(set) var launchAtLoginMessage: String?
-    @Published var showsPomodoro: Bool { didSet { saveCardPreferences() } }
-    @Published var showsCalendar: Bool { didSet { saveCardPreferences() } }
-    @Published var showsPower: Bool { didSet { saveCardPreferences() } }
+    @Published private(set) var enabledIslandCards: Set<IslandCardID>
+    @Published private(set) var islandCardOrders: [IslandCardContext: [IslandCardID]]
+    @Published private(set) var activeIslandScenePreset: IslandScenePreset
     @Published var showsWelcome: Bool { didSet { UserDefaults.standard.set(!showsWelcome, forKey: Self.welcomeSeenKey) } }
     @Published var expandsOnHover: Bool {
-        didSet { UserDefaults.standard.set(expandsOnHover, forKey: "interaction.hoverPreview") }
+        didSet {
+            UserDefaults.standard.set(expandsOnHover, forKey: "interaction.hoverPreview")
+            markIslandSceneCustomized()
+        }
     }
     @Published var autoCollapseDelay: Double {
         didSet { UserDefaults.standard.set(autoCollapseDelay, forKey: "interaction.collapseDelay") }
     }
+    @Published var hidesIslandInFullScreen: Bool {
+        didSet {
+            UserDefaults.standard.set(hidesIslandInFullScreen, forKey: "interaction.hideInFullScreen")
+            markIslandSceneCustomized()
+            NotificationCenter.default.post(name: Self.islandFullScreenBehaviorDidChange, object: self)
+        }
+    }
+    @Published var compactDisplayMode: CompactDisplayMode {
+        didSet {
+            UserDefaults.standard.set(compactDisplayMode.rawValue, forKey: "island.compactDisplayMode")
+            markIslandSceneCustomized()
+        }
+    }
+    @Published var islandDisplayStrategy: IslandDisplayStrategy {
+        didSet {
+            UserDefaults.standard.set(islandDisplayStrategy.rawValue, forKey: "island.displayStrategy")
+            NotificationCenter.default.post(name: Self.islandDisplayStrategyDidChange, object: self)
+        }
+    }
     @Published var musicVisualizerStyle: MusicVisualizerStyle {
-        didSet { UserDefaults.standard.set(musicVisualizerStyle.rawValue, forKey: "music.visualizer") }
+        didSet {
+            UserDefaults.standard.set(musicVisualizerStyle.rawValue, forKey: "music.visualizer")
+            markIslandSceneCustomized()
+        }
     }
     @Published var islandAccentTheme: IslandAccentTheme {
         didSet { UserDefaults.standard.set(islandAccentTheme.rawValue, forKey: "island.accentTheme") }
@@ -116,9 +278,16 @@ final class AppSettings: ObservableObject {
     @Published var lyricOffset: Double {
         didSet { UserDefaults.standard.set(lyricOffset, forKey: "music.lyricOffset") }
     }
+    @Published var showsTranslatedLyrics: Bool {
+        didSet {
+            UserDefaults.standard.set(showsTranslatedLyrics, forKey: "music.translatedLyrics")
+            NotificationCenter.default.post(name: Self.desktopLyricsDidChange, object: self)
+        }
+    }
     @Published var showsDesktopLyrics: Bool {
         didSet {
             UserDefaults.standard.set(showsDesktopLyrics, forKey: "music.desktopLyrics")
+            markIslandSceneCustomized()
             NotificationCenter.default.post(name: Self.desktopLyricsDidChange, object: self)
         }
     }
@@ -137,16 +306,26 @@ final class AppSettings: ObservableObject {
     @Published var pocketCapacityMB: Int { didSet { UserDefaults.standard.set(pocketCapacityMB, forKey: "pocket.capacityMB") } }
 
     private static let welcomeSeenKey = "welcome.seen"
+    private var isApplyingIslandScenePreset = false
 
     init() {
         launchesAtLogin = SMAppService.mainApp.status == .enabled
         let defaults = UserDefaults.standard
-        showsPomodoro = defaults.object(forKey: "cards.pomodoro") as? Bool ?? true
-        showsCalendar = defaults.object(forKey: "cards.calendar") as? Bool ?? true
-        showsPower = defaults.object(forKey: "cards.power") as? Bool ?? true
+        enabledIslandCards = Self.loadEnabledIslandCards(from: defaults)
+        islandCardOrders = Self.loadIslandCardOrders(from: defaults)
+        activeIslandScenePreset = IslandScenePreset(
+            rawValue: defaults.string(forKey: "island.scenePreset") ?? ""
+        ) ?? .custom
         showsWelcome = !defaults.bool(forKey: Self.welcomeSeenKey)
         expandsOnHover = defaults.object(forKey: "interaction.hoverPreview") as? Bool ?? true
         autoCollapseDelay = min(max(defaults.object(forKey: "interaction.collapseDelay") as? Double ?? 0.65, 0.3), 2.0)
+        hidesIslandInFullScreen = defaults.object(forKey: "interaction.hideInFullScreen") as? Bool ?? true
+        compactDisplayMode = CompactDisplayMode(
+            rawValue: defaults.string(forKey: "island.compactDisplayMode") ?? ""
+        ) ?? .smart
+        islandDisplayStrategy = IslandDisplayStrategy(
+            rawValue: defaults.string(forKey: "island.displayStrategy") ?? ""
+        ) ?? .builtInPreferred
         let savedVisualizer = defaults.string(forKey: "music.visualizer") ?? ""
         // Keep existing users' former "唱片光晕" choice meaningful while
         // replacing the effect with its less generic successor.
@@ -157,6 +336,7 @@ final class AppSettings: ObservableObject {
             rawValue: defaults.string(forKey: "island.accentTheme") ?? ""
         ) ?? .violet
         lyricOffset = min(max(defaults.object(forKey: "music.lyricOffset") as? Double ?? 0, -3), 3)
+        showsTranslatedLyrics = defaults.object(forKey: "music.translatedLyrics") as? Bool ?? true
         showsDesktopLyrics = defaults.object(forKey: "music.desktopLyrics") as? Bool ?? false
         desktopLyricsShowsNextLine = defaults.object(forKey: "desktopLyrics.nextLine") as? Bool ?? true
         desktopLyricsKaraokeEnabled = defaults.object(forKey: "desktopLyrics.karaokeFill") as? Bool ?? true
@@ -200,6 +380,104 @@ final class AppSettings: ObservableObject {
         NotificationCenter.default.post(name: Self.desktopLyricsPositionReset, object: self)
     }
 
+    func isIslandCardEnabled(_ id: IslandCardID) -> Bool {
+        enabledIslandCards.contains(id)
+    }
+
+    func setIslandCardEnabled(_ id: IslandCardID, enabled: Bool) {
+        var updated = enabledIslandCards
+        if enabled {
+            updated.insert(id)
+        } else {
+            updated.remove(id)
+        }
+        updated = IslandCardRegistry.sanitized(updated)
+        guard updated != enabledIslandCards else { return }
+        saveEnabledIslandCards(updated)
+        markIslandSceneCustomized()
+    }
+
+    var prefersReducedActivity: Bool {
+        activeIslandScenePreset == .powerSaving
+    }
+
+    func applyIslandScenePreset(_ preset: IslandScenePreset) {
+        guard let configuration = preset.configuration else {
+            activeIslandScenePreset = .custom
+            UserDefaults.standard.set(IslandScenePreset.custom.rawValue, forKey: "island.scenePreset")
+            NotificationCenter.default.post(name: Self.islandSceneDidChange, object: self)
+            return
+        }
+
+        isApplyingIslandScenePreset = true
+        activeIslandScenePreset = preset
+        expandsOnHover = configuration.expandsOnHover
+        hidesIslandInFullScreen = configuration.hidesIslandInFullScreen
+        compactDisplayMode = configuration.compactDisplayMode
+        musicVisualizerStyle = configuration.musicVisualizerStyle
+        showsDesktopLyrics = configuration.showsDesktopLyrics
+        saveEnabledIslandCards(configuration.enabledCards)
+        isApplyingIslandScenePreset = false
+
+        UserDefaults.standard.set(preset.rawValue, forKey: "island.scenePreset")
+        NotificationCenter.default.post(name: Self.islandSceneDidChange, object: self)
+    }
+
+    func islandCardOrder(for context: IslandCardContext) -> [IslandCardID] {
+        IslandCardRegistry.sanitizedOrder(islandCardOrders[context] ?? [], for: context)
+    }
+
+    func canMoveIslandCard(_ id: IslandCardID, by offset: Int, in context: IslandCardContext) -> Bool {
+        let current = islandCardOrder(for: context)
+        return IslandCardRegistry.moving(id, by: offset, in: context, order: current) != current
+    }
+
+    func moveIslandCard(_ id: IslandCardID, by offset: Int, in context: IslandCardContext) {
+        let current = islandCardOrder(for: context)
+        let updated = IslandCardRegistry.moving(id, by: offset, in: context, order: current)
+        guard updated != current else { return }
+
+        saveIslandCardOrder(updated, for: context)
+    }
+
+    func resetIslandCardOrder(in context: IslandCardContext) {
+        let defaultOrder = IslandCardRegistry.defaultOrder(for: context)
+        guard islandCardOrder(for: context) != defaultOrder else { return }
+        saveIslandCardOrder(defaultOrder, for: context)
+    }
+
+    private func saveIslandCardOrder(_ order: [IslandCardID], for context: IslandCardContext) {
+        islandCardOrders[context] = order
+        UserDefaults.standard.set(order.map(\.rawValue), forKey: "cards.order.\(context.rawValue)")
+        NotificationCenter.default.post(name: Self.islandCardsDidChange, object: self)
+    }
+
+    private func saveEnabledIslandCards(_ cards: Set<IslandCardID>) {
+        let sanitized = IslandCardRegistry.sanitized(cards)
+        guard sanitized != enabledIslandCards else { return }
+        enabledIslandCards = sanitized
+
+        let defaults = UserDefaults.standard
+        let rawValues = IslandCardRegistry.registrations
+            .map(\.id)
+            .filter(sanitized.contains)
+            .map(\.rawValue)
+        defaults.set(rawValues, forKey: "cards.enabled")
+        // Keep the former keys synchronized so a temporary downgrade does not
+        // silently re-enable cards the user intentionally hid.
+        defaults.set(sanitized.contains(.focus), forKey: "cards.pomodoro")
+        defaults.set(sanitized.contains(.calendar), forKey: "cards.calendar")
+        defaults.set(sanitized.contains(.power), forKey: "cards.power")
+        NotificationCenter.default.post(name: Self.islandCardsDidChange, object: self)
+    }
+
+    private func markIslandSceneCustomized() {
+        guard !isApplyingIslandScenePreset, activeIslandScenePreset != .custom else { return }
+        activeIslandScenePreset = .custom
+        UserDefaults.standard.set(IslandScenePreset.custom.rawValue, forKey: "island.scenePreset")
+        NotificationCenter.default.post(name: Self.islandSceneDidChange, object: self)
+    }
+
     private func saveDesktopLyricsPreferences() {
         let defaults = UserDefaults.standard
         defaults.set(desktopLyricsShowsNextLine, forKey: "desktopLyrics.nextLine")
@@ -211,11 +489,33 @@ final class AppSettings: ObservableObject {
         NotificationCenter.default.post(name: Self.desktopLyricsDidChange, object: self)
     }
 
-    private func saveCardPreferences() {
-        let defaults = UserDefaults.standard
-        defaults.set(showsPomodoro, forKey: "cards.pomodoro")
-        defaults.set(showsCalendar, forKey: "cards.calendar")
-        defaults.set(showsPower, forKey: "cards.power")
+    private static func loadEnabledIslandCards(from defaults: UserDefaults) -> Set<IslandCardID> {
+        if let rawValues = defaults.stringArray(forKey: "cards.enabled") {
+            return IslandCardRegistry.sanitized(rawValues.compactMap(IslandCardID.init(rawValue:)))
+        }
+
+        var enabled = IslandCardRegistry.defaultEnabledIDs
+        let legacyKeys: [(IslandCardID, String)] = [
+            (.focus, "cards.pomodoro"),
+            (.calendar, "cards.calendar"),
+            (.power, "cards.power")
+        ]
+        for (id, key) in legacyKeys {
+            if let legacyValue = defaults.object(forKey: key) as? Bool, !legacyValue {
+                enabled.remove(id)
+            }
+        }
+        return enabled
+    }
+
+    private static func loadIslandCardOrders(
+        from defaults: UserDefaults
+    ) -> [IslandCardContext: [IslandCardID]] {
+        Dictionary(uniqueKeysWithValues: IslandCardContext.allCases.map { context in
+            let saved = defaults.stringArray(forKey: "cards.order.\(context.rawValue)") ?? []
+            let decoded = saved.compactMap(IslandCardID.init(rawValue:))
+            return (context, IslandCardRegistry.sanitizedOrder(decoded, for: context))
+        })
     }
 
     private func saveWellnessPreferences() {

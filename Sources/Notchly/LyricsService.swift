@@ -3,11 +3,13 @@ import Foundation
 struct TimedLyricLine: Identifiable, Hashable, Sendable {
     let time: TimeInterval
     let text: String
+    let translation: String?
     let isCredit: Bool
 
-    init(time: TimeInterval, text: String, isCredit: Bool = false) {
+    init(time: TimeInterval, text: String, translation: String? = nil, isCredit: Bool = false) {
         self.time = time
         self.text = text
+        self.translation = translation
         self.isCredit = isCredit
     }
 
@@ -121,7 +123,9 @@ actor LyricsService {
         let data = try await request(components.url!, provider: .netease)
         let response = try JSONDecoder().decode(LyricResponse.self, from: data)
         guard let source = response.lrc?.lyric else { throw LyricsError.notFound }
-        let lines = Self.parseLRC(source)
+        let originalLines = Self.parseLRC(source)
+        let translatedLines = response.tlyric?.lyric.map(Self.parseLRC) ?? []
+        let lines = Self.mergingTranslations(into: originalLines, from: translatedLines)
         guard !lines.isEmpty else { throw LyricsError.notFound }
         return lines
     }
@@ -260,6 +264,44 @@ actor LyricsService {
         return distributeIntroCredits(in: timeline)
     }
 
+    /// Translation LRC usually shares timestamps with the original lyric, but
+    /// providers occasionally round a centisecond differently. Match the
+    /// nearest line inside a small window without shifting the source timeline.
+    nonisolated static func mergingTranslations(
+        into originalLines: [TimedLyricLine],
+        from translatedLines: [TimedLyricLine],
+        tolerance: TimeInterval = 0.35
+    ) -> [TimedLyricLine] {
+        guard !originalLines.isEmpty, !translatedLines.isEmpty else { return originalLines }
+        var available = Set(translatedLines.indices)
+
+        return originalLines.map { original in
+            let bestIndex = available.min { lhs, rhs in
+                abs(translatedLines[lhs].time - original.time)
+                    < abs(translatedLines[rhs].time - original.time)
+            }
+            guard let bestIndex,
+                  abs(translatedLines[bestIndex].time - original.time) <= tolerance else {
+                return original
+            }
+
+            let translation = translatedLines[bestIndex].text
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !translation.isEmpty,
+                  normalized(translation) != normalized(original.text) else {
+                available.remove(bestIndex)
+                return original
+            }
+            available.remove(bestIndex)
+            return TimedLyricLine(
+                time: original.time,
+                text: original.text,
+                translation: translation,
+                isCredit: original.isCredit
+            )
+        }
+    }
+
     /// NetEase commonly assigns every credit the same 00:00 timestamp. Showing
     /// only the last one for a fraction of a second makes credits appear lost.
     /// Space that opening group across the instrumental intro so every source
@@ -316,6 +358,7 @@ private struct SearchArtist: Decodable {
 
 private struct LyricResponse: Decodable {
     let lrc: LyricPayload?
+    let tlyric: LyricPayload?
 }
 
 private struct LyricPayload: Decodable {

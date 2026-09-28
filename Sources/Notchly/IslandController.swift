@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import SwiftUI
 
 @MainActor
@@ -9,6 +10,10 @@ final class IslandController: NSObject {
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private var desktopLyricsObserver: NSObjectProtocol?
+    private var fullScreenBehaviorObserver: NSObjectProtocol?
+    private var displayStrategyObserver: NSObjectProtocol?
+    private var islandCardsObserver: NSObjectProtocol?
+    private var islandSceneObserver: NSObjectProtocol?
     private var musicRefreshTimer: Timer?
     private var powerRefreshTimer: Timer?
     private var pointerTimer: Timer?
@@ -18,6 +23,7 @@ final class IslandController: NSObject {
     private var collapseTask: Task<Void, Never>?
     private var wasPointerInside = false
     private var wasHeldOpenByPopover = false
+    private var positionedScreenNumber: NSNumber?
 
     init(state: IslandState) {
         self.state = state
@@ -32,7 +38,9 @@ final class IslandController: NSObject {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        panel.collectionBehavior = IslandWindowPolicy.collectionBehavior(
+            hidesInFullScreen: state.settings.hidesIslandInFullScreen
+        )
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.acceptsMouseMovedEvents = true
@@ -61,6 +69,49 @@ final class IslandController: NSObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in self?.updateMusicRefreshSchedule() }
+        }
+        fullScreenBehaviorObserver = NotificationCenter.default.addObserver(
+            forName: AppSettings.islandFullScreenBehaviorDidChange,
+            object: state.settings,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.applyFullScreenBehavior() }
+        }
+        displayStrategyObserver = NotificationCenter.default.addObserver(
+            forName: AppSettings.islandDisplayStrategyDidChange,
+            object: state.settings,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.applyDisplayStrategy() }
+        }
+        islandCardsObserver = NotificationCenter.default.addObserver(
+            forName: AppSettings.islandCardsDidChange,
+            object: state.settings,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if self.state.settings.isIslandCardEnabled(.power) {
+                    self.state.refreshPower()
+                }
+                self.updatePowerRefreshSchedule()
+            }
+        }
+        islandSceneObserver = NotificationCenter.default.addObserver(
+            forName: AppSettings.islandSceneDidChange,
+            object: state.settings,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.applyFullScreenBehavior()
+                if let screen = self.preferredScreen {
+                    self.relocatePanel(to: screen, force: true)
+                }
+                self.updateMusicRefreshSchedule()
+                self.updatePowerRefreshSchedule()
+                self.updatePointerTracking()
+            }
         }
         state.refreshMusic()
         updateMusicRefreshSchedule()
@@ -93,6 +144,22 @@ final class IslandController: NSObject {
             NotificationCenter.default.removeObserver(desktopLyricsObserver)
             self.desktopLyricsObserver = nil
         }
+        if let fullScreenBehaviorObserver {
+            NotificationCenter.default.removeObserver(fullScreenBehaviorObserver)
+            self.fullScreenBehaviorObserver = nil
+        }
+        if let displayStrategyObserver {
+            NotificationCenter.default.removeObserver(displayStrategyObserver)
+            self.displayStrategyObserver = nil
+        }
+        if let islandCardsObserver {
+            NotificationCenter.default.removeObserver(islandCardsObserver)
+            self.islandCardsObserver = nil
+        }
+        if let islandSceneObserver {
+            NotificationCenter.default.removeObserver(islandSceneObserver)
+            self.islandSceneObserver = nil
+        }
         NotificationCenter.default.removeObserver(self)
         panel.orderOut(nil)
     }
@@ -108,9 +175,8 @@ final class IslandController: NSObject {
 
     private func expandFully() {
         collapseTask?.cancel()
-        guard presentation.phase != .expanded, let screen = activeScreen else { return }
-        updateNotchGeometry(from: screen)
-        positionPanel(on: screen)
+        guard presentation.phase != .expanded, let screen = preferredScreen else { return }
+        relocatePanel(to: screen)
         state.refreshAuthorizedServices()
         presentation.phase = .expanded
         panel.orderFrontRegardless()
@@ -152,23 +218,61 @@ final class IslandController: NSObject {
     }
 
     private func showCompactPanel() {
-        guard let screen = activeScreen else { return }
-        updateNotchGeometry(from: screen)
-        positionPanel(on: screen)
+        guard let screen = preferredScreen else { return }
+        relocatePanel(to: screen)
         panel.orderFrontRegardless()
     }
 
-    @objc private func screenParametersChanged() {
-        guard let screen = activeScreen else { return }
-        updateNotchGeometry(from: screen)
-        positionPanel(on: screen)
+    private func applyFullScreenBehavior() {
+        panel.collectionBehavior = IslandWindowPolicy.collectionBehavior(
+            hidesInFullScreen: state.settings.hidesIslandInFullScreen
+        )
     }
 
-    private var activeScreen: NSScreen? {
+    private func applyDisplayStrategy() {
+        guard let screen = preferredScreen else { return }
+        relocatePanel(to: screen, force: true)
+        wasPointerInside = false
+        wasHeldOpenByPopover = false
+    }
+
+    @objc private func screenParametersChanged() {
+        guard let screen = preferredScreen else { return }
+        relocatePanel(to: screen, force: true)
+        wasPointerInside = false
+        wasHeldOpenByPopover = false
+    }
+
+    private var preferredScreen: NSScreen? {
         let screens = NSScreen.screens
-        return screens.first(where: {
-            $0.auxiliaryTopLeftArea != nil && $0.auxiliaryTopRightArea != nil
-        }) ?? NSScreen.main ?? screens.first
+        guard !screens.isEmpty else { return nil }
+        let pointerIndex = screens.firstIndex { $0.frame.contains(NSEvent.mouseLocation) }
+        let index = DisplaySelectionPolicy.selectedIndex(
+            strategy: state.settings.islandDisplayStrategy,
+            hasNotch: screens.map(Self.hasNotch),
+            isBuiltIn: screens.map(Self.isBuiltIn),
+            primaryIndex: screens.indices.first,
+            pointerIndex: pointerIndex
+        )
+        return index.map { screens[$0] } ?? screens.first
+    }
+
+    private var positionedScreen: NSScreen? {
+        guard let positionedScreenNumber else { return nil }
+        return NSScreen.screens.first { Self.screenNumber($0) == positionedScreenNumber }
+    }
+
+    private static func hasNotch(_ screen: NSScreen) -> Bool {
+        screen.auxiliaryTopLeftArea != nil && screen.auxiliaryTopRightArea != nil
+    }
+
+    private static func isBuiltIn(_ screen: NSScreen) -> Bool {
+        guard let number = screenNumber(screen) else { return false }
+        return CGDisplayIsBuiltin(CGDirectDisplayID(number.uint32Value)) != 0
+    }
+
+    private static func screenNumber(_ screen: NSScreen) -> NSNumber? {
+        screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
     }
 
     private func updateNotchGeometry(from screen: NSScreen) {
@@ -191,6 +295,14 @@ final class IslandController: NSObject {
             width: size.width,
             height: size.height
         ), display: true)
+        positionedScreenNumber = Self.screenNumber(screen)
+    }
+
+    private func relocatePanel(to screen: NSScreen, force: Bool = false) {
+        let targetNumber = Self.screenNumber(screen)
+        guard force || targetNumber != positionedScreenNumber else { return }
+        updateNotchGeometry(from: screen)
+        positionPanel(on: screen)
     }
 
     private func updatePointerTracking() {
@@ -211,7 +323,19 @@ final class IslandController: NSObject {
     }
 
     private func updatePointerState() {
-        guard panel.isVisible, let screen = activeScreen else {
+        if state.settings.islandDisplayStrategy == .followsPointer,
+           presentation.phase == .compact,
+           let target = preferredScreen {
+            // Reuse the existing low-frequency pointer timer. The panel only
+            // moves after the pointer actually crosses to another display.
+            relocatePanel(to: target)
+        }
+        // A panel can remain logically visible while macOS keeps it off the
+        // current full-screen Space. Do not let an invisible hover target
+        // expand the island behind the user's video, game, or presentation.
+        guard panel.isVisible,
+              panel.occlusionState.contains(.visible),
+              let screen = positionedScreen ?? preferredScreen else {
             panel.ignoresMouseEvents = true
             wasPointerInside = false
             wasHeldOpenByPopover = false
@@ -240,6 +364,7 @@ final class IslandController: NSObject {
 
     private func surfaceFrame(on screen: NSScreen) -> NSRect {
         let size = presentation.surfaceSize(
+            mode: state.settings.compactDisplayMode,
             hasMusic: state.hasMusic,
             isPomodoroRunning: state.isPomodoroRunning
         )
@@ -256,7 +381,8 @@ final class IslandController: NSObject {
             isExpanded: presentation.phase == .expanded,
             isPlaying: state.isPlaying,
             showsDesktopLyrics: state.settings.showsDesktopLyrics,
-            hasMusic: state.hasMusic
+            hasMusic: state.hasMusic,
+            prefersEfficiency: state.settings.prefersReducedActivity
         )
         guard musicRefreshInterval != interval else { return }
         musicRefreshTimer?.invalidate()
@@ -268,6 +394,12 @@ final class IslandController: NSObject {
     }
 
     private func updatePowerRefreshSchedule() {
+        guard state.settings.isIslandCardEnabled(.power) else {
+            powerRefreshTimer?.invalidate()
+            powerRefreshTimer = nil
+            powerRefreshInterval = nil
+            return
+        }
         // Battery state changes slowly and does not need to follow playback
         // polling. Keep the expanded view fresh without repeatedly hitting
         // IOKit while a song or desktop lyrics are active.
@@ -289,7 +421,7 @@ final class IslandController: NSObject {
         }
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor in
-                guard let self, let screen = self.activeScreen,
+                guard let self, let screen = self.positionedScreen ?? self.preferredScreen,
                       self.presentation.phase != .compact,
                       !self.state.isIslandPopoverPresented,
                       !self.surfaceFrame(on: screen).contains(NSEvent.mouseLocation) else { return }
@@ -306,18 +438,63 @@ final class IslandController: NSObject {
     }
 }
 
+enum DisplaySelectionPolicy {
+    static func selectedIndex(
+        strategy: IslandDisplayStrategy,
+        hasNotch: [Bool],
+        isBuiltIn: [Bool],
+        primaryIndex: Int?,
+        pointerIndex: Int?
+    ) -> Int? {
+        let count = min(hasNotch.count, isBuiltIn.count)
+        guard count > 0 else { return nil }
+
+        func valid(_ index: Int?) -> Int? {
+            guard let index, (0..<count).contains(index) else { return nil }
+            return index
+        }
+
+        switch strategy {
+        case .builtInPreferred:
+            return (0..<count).first { hasNotch[$0] && isBuiltIn[$0] }
+                ?? isBuiltIn.prefix(count).firstIndex(of: true)
+                ?? hasNotch.prefix(count).firstIndex(of: true)
+                ?? valid(primaryIndex)
+                ?? 0
+        case .primary:
+            return valid(primaryIndex) ?? 0
+        case .followsPointer:
+            return valid(pointerIndex) ?? valid(primaryIndex) ?? 0
+        }
+    }
+}
+
 enum IslandRefreshPolicy {
     static func musicInterval(
         isExpanded: Bool,
         isPlaying: Bool,
         showsDesktopLyrics: Bool,
-        hasMusic: Bool
+        hasMusic: Bool,
+        prefersEfficiency: Bool = false
     ) -> TimeInterval {
+        if prefersEfficiency {
+            if showsDesktopLyrics { return 2 }
+            if isExpanded || isPlaying { return 4 }
+            return hasMusic ? 12 : 30
+        }
         if isExpanded || isPlaying || showsDesktopLyrics { return 2 }
         return hasMusic ? 6 : 15
     }
 
     static func powerInterval(isExpanded: Bool) -> TimeInterval {
         isExpanded ? 30 : 60
+    }
+}
+
+enum IslandWindowPolicy {
+    static func collectionBehavior(hidesInFullScreen: Bool) -> NSWindow.CollectionBehavior {
+        var behavior: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .transient]
+        behavior.insert(hidesInFullScreen ? .fullScreenNone : .fullScreenAuxiliary)
+        return behavior
     }
 }

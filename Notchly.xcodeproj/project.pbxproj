@@ -13,6 +13,9 @@
 		0E0D85E00F1D071E1C9AC614 /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDC155666AFB3D96E0F2BD1C /* LyricsService.swift */; };
 		1239C15AB1387B98ED51F2B0 /* THIRD_PARTY_NOTICES.txt in Resources */ = {isa = PBXBuildFile; fileRef = 6D6267FB158150CAA88B69D2 /* THIRD_PARTY_NOTICES.txt */; };
 		1753C1FF7ED48D8CE1CB1FB8 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6E87A78F5E1BCBC7C0D14E3 /* CalendarService.swift */; };
+		18B44812BB4DB68EADE69939 /* MusicLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6438E7559E7C756054083C11 /* MusicLibraryService.swift */; };
+		2A4D61F0938BC7E1540A6D22 /* MusicPlayerAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CE0B7A419F32D8E6A174B5 /* MusicPlayerAdapter.swift */; };
+		1D8E27A41A47F8B5C4D9E612 /* IslandCardRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7F6A2E9B153D8F0A61C934 /* IslandCardRegistry.swift */; };
 		26F9B57640FD72DA3C622DA9 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = BEFF4AE5FCB349D10B5952CF /* LICENSE */; };
 		28D4543CBF28D93608BEBF32 /* PowerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60B25DD0CFB285B137D967F9 /* PowerService.swift */; };
 		30482931BAB54FAF32DB0B35 /* PocketService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F04FA14A04514055C83A14 /* PocketService.swift */; };
@@ -62,8 +65,11 @@
 		0EAC800A2F71E9DE85876EE3 /* CollapsedIslandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollapsedIslandView.swift; sourceTree = "<group>"; };
 		36A8155B6FB3318F89126EBB /* IslandState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandState.swift; sourceTree = "<group>"; };
 		3BA3898E29CA484C27720D66 /* NotchlyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchlyApp.swift; sourceTree = "<group>"; };
+		4C7F6A2E9B153D8F0A61C934 /* IslandCardRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCardRegistry.swift; sourceTree = "<group>"; };
+		58CE0B7A419F32D8E6A174B5 /* MusicPlayerAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlayerAdapter.swift; sourceTree = "<group>"; };
 		5FE45BA9A974A3BDF9CE48FD /* NotchlyCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchlyCoreTests.swift; sourceTree = "<group>"; };
 		60B25DD0CFB285B137D967F9 /* PowerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerService.swift; sourceTree = "<group>"; };
+		6438E7559E7C756054083C11 /* MusicLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicLibraryService.swift; sourceTree = "<group>"; };
 		65F7EB855B3770E3F5EEEEC8 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		6D6267FB158150CAA88B69D2 /* THIRD_PARTY_NOTICES.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = THIRD_PARTY_NOTICES.txt; sourceTree = "<group>"; };
 		7A5349B9D8549DCA2E5F2AEE /* MusicVisualizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicVisualizer.swift; sourceTree = "<group>"; };
@@ -124,10 +130,13 @@
 				7ED28993ABB668C95EA2CED8 /* DesktopLyricsController.swift */,
 				EBC6014964CDFD9192AA6547 /* Diagnostics.swift */,
 				095C4E6CE2D6CF0541AAA326 /* HotKeyRegistrar.swift */,
+				4C7F6A2E9B153D8F0A61C934 /* IslandCardRegistry.swift */,
 				BE8252CC094796A27D6B0143 /* IslandController.swift */,
 				36A8155B6FB3318F89126EBB /* IslandState.swift */,
 				80FC684B2CCC887C938CA84C /* IslandView.swift */,
 				EDC155666AFB3D96E0F2BD1C /* LyricsService.swift */,
+				6438E7559E7C756054083C11 /* MusicLibraryService.swift */,
+				58CE0B7A419F32D8E6A174B5 /* MusicPlayerAdapter.swift */,
 				8299F506876ED86E487512DA /* MusicService.swift */,
 				7A5349B9D8549DCA2E5F2AEE /* MusicVisualizer.swift */,
 				3BA3898E29CA484C27720D66 /* NotchlyApp.swift */,
@@ -271,10 +280,13 @@
 				4EB6DDFDF6B020D0012079BE /* DesktopLyricsController.swift in Sources */,
 				69FEF8F1D28D2EF01E39C1F1 /* Diagnostics.swift in Sources */,
 				3F074EEBB246E52B8180E879 /* HotKeyRegistrar.swift in Sources */,
+				1D8E27A41A47F8B5C4D9E612 /* IslandCardRegistry.swift in Sources */,
 				4507D92FD86CB8E143CFA354 /* IslandController.swift in Sources */,
 				EF52925CBF2B276BF3398BCE /* IslandState.swift in Sources */,
 				35328B047629CFF68E528A87 /* IslandView.swift in Sources */,
 				0E0D85E00F1D071E1C9AC614 /* LyricsService.swift in Sources */,
+				18B44812BB4DB68EADE69939 /* MusicLibraryService.swift in Sources */,
+				2A4D61F0938BC7E1540A6D22 /* MusicPlayerAdapter.swift in Sources */,
 				0156D4E3963A3172FA6C92D9 /* MusicService.swift in Sources */,
 				B408C8730B7033062AD89966 /* MusicVisualizer.swift in Sources */,
 				36066206424A109C3F075319 /* NotchlyApp.swift in Sources */,

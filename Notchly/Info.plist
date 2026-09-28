@@ -12,6 +12,7 @@
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSUIElement</key><true/>
     <key>NSCalendarsFullAccessUsageDescription</key><string>Notchly 会读取下一场日程，以便在刘海下方显示提醒。</string>
+    <key>NSRemindersFullAccessUsageDescription</key><string>Notchly 会在你主动打开提醒事项卡片时读取下一条未完成提醒，内容不会上传。</string>
     <key>NSAppleEventsUsageDescription</key><string>Notchly 需要读取和控制 Spotify 或 Music 的播放状态，以便在灵动岛中显示音乐。</string>
     <key>NSUserNotificationUsageDescription</key><string>Notchly 会在专注计时结束时发送提醒。</string>
     <key>NSPrefersDisplaySafeAreaCompatibilityMode</key><false/>
