@@ -31,6 +31,18 @@ final class CalendarService {
 
 enum CalendarAccessError: Error { case denied }
 
+enum CalendarUrgencyPolicy {
+    static func isImminent(
+        startDate: Date?,
+        now: Date = .now,
+        threshold: TimeInterval = 2 * 60 * 60
+    ) -> Bool {
+        guard let startDate else { return false }
+        let interval = startDate.timeIntervalSince(now)
+        return interval >= 0 && interval <= threshold
+    }
+}
+
 struct ReminderSnapshot: Equatable, Sendable {
     let title: String
     let dueDate: Date?

@@ -19,15 +19,15 @@ enum IslandCardContext: String, CaseIterable, Hashable, Identifiable {
 
     var title: String {
         switch self {
-        case .musicFooter: "音乐展开区"
-        case .idleDashboard: "待机面板"
+        case .musicFooter: "播放时快捷栏"
+        case .idleDashboard: "无音乐待机面板"
         }
     }
 
     var orderingHint: String {
         switch self {
-        case .musicFooter: "文件暂存需要适应剩余宽度，因此固定在末尾。"
-        case .idleDashboard: "决定没有音乐播放时快捷卡片的排列。"
+        case .musicFooter: "歌曲展开时显示在底部，四个入口始终等宽。"
+        case .idleDashboard: "没有音乐播放时显示，可额外快速查看提醒事项。"
         }
     }
 }
@@ -41,7 +41,7 @@ struct IslandCardRegistration: Identifiable, Equatable {
     let defaultEnabled: Bool
 }
 
-/// The single catalog for optional island modules. Views only decide how a
+/// The single catalog for core island modules. Views only decide how a
 /// registered card is rendered in a given context; availability, metadata,
 /// enablement and default order no longer live in scattered conditionals.
 enum IslandCardRegistry {
@@ -76,7 +76,7 @@ enum IslandCardRegistry {
             icon: "checklist",
             detail: "显示下一条未完成提醒，仅在主动打开时读取",
             contexts: [.idleDashboard],
-            defaultEnabled: false
+            defaultEnabled: true
         ),
         IslandCardRegistration(
             id: .pocket,
@@ -91,6 +91,11 @@ enum IslandCardRegistry {
     static let defaultEnabledIDs = Set(
         registrations.lazy.filter(\.defaultEnabled).map(\.id)
     )
+
+    // Core cards are structural parts of the island rather than optional
+    // plug-ins. Keeping them enabled prevents an empty or malformed footer
+    // after presets, upgrades, or accidentally clearing every checkbox.
+    static let requiredIDs = Set(IslandCardID.allCases)
 
     private static let defaultContextOrder: [IslandCardContext: [IslandCardID]] = [
         .musicFooter: [.power, .focus, .calendar, .pocket],
@@ -107,7 +112,7 @@ enum IslandCardRegistry {
         preferredOrder: [IslandCardID]? = nil
     ) -> [IslandCardID] {
         sanitizedOrder(preferredOrder ?? [], for: context)
-            .filter(enabledIDs.contains)
+            .filter(sanitized(enabledIDs).contains)
     }
 
     static func defaultOrder(for context: IslandCardContext) -> [IslandCardID] {
@@ -129,8 +134,8 @@ enum IslandCardRegistry {
         var result = Array(proposedOrder) + fallback
         result = result.filter { supportedSet.contains($0) && seen.insert($0).inserted }
 
-        // The pocket row is the flexible-width item in the music footer. Keeping
-        // it last avoids compressed controls and makes the ordering predictable.
+        // File drop remains the final action in the playback shortcut bar, so
+        // its position stays predictable even though all four tiles are equal.
         if context == .musicFooter, let pocketIndex = result.firstIndex(of: .pocket) {
             result.append(result.remove(at: pocketIndex))
         }
@@ -157,22 +162,8 @@ enum IslandCardRegistry {
     }
 
     static func sanitized(_ ids: some Sequence<IslandCardID>) -> Set<IslandCardID> {
-        Set(ids).intersection(Set(registrations.map(\.id)))
-    }
-}
-
-enum IslandCardLayoutPolicy {
-    static func musicFooterControlsWidth(for ids: [IslandCardID]) -> CGFloat {
-        let widths: [CGFloat] = ids.compactMap {
-            switch $0 {
-            case .power: 72
-            case .focus: 132
-            case .calendar: 86
-            case .reminders: nil
-            case .pocket: nil
-            }
-        }
-        guard !widths.isEmpty else { return 0 }
-        return widths.reduce(0, +) + CGFloat(max(0, widths.count - 1))
+        Set(ids)
+            .intersection(Set(registrations.map(\.id)))
+            .union(requiredIDs)
     }
 }

@@ -20,12 +20,12 @@ final class NotchPresentation: ObservableObject {
         hasMusic: Bool,
         isPomodoroRunning: Bool
     ) -> NSSize {
-        let wingWidth = NotchLayoutPolicy.compactWingWidth(
+        let wings = NotchLayoutPolicy.compactWingWidths(
             mode: mode,
             hasMusic: hasMusic,
             isPomodoroRunning: isPomodoroRunning
         )
-        return NSSize(width: max(220, notchWidth + wingWidth * 2), height: notchHeight + 2)
+        return NSSize(width: max(220, notchWidth + wings.leading + wings.trailing), height: notchHeight + 2)
     }
 
     // The player needs room for artwork, metadata and lyrics. Without music,
@@ -77,6 +77,14 @@ struct NotchIslandView: View {
             hasMusic: state.hasMusic,
             isPomodoroRunning: state.isPomodoroRunning
         )
+        let compactWings = NotchLayoutPolicy.compactWingWidths(
+            mode: settings.compactDisplayMode,
+            hasMusic: state.hasMusic,
+            isPomodoroRunning: state.isPomodoroRunning
+        )
+        let surfaceOffsetX = presentation.phase == .compact
+            ? (compactWings.trailing - compactWings.leading) / 2
+            : 0
 
         ZStack(alignment: .top) {
             Color.clear
@@ -109,6 +117,9 @@ struct NotchIslandView: View {
                 }
             }
             .frame(width: surfaceSize.width, height: surfaceSize.height)
+            // Keep the physical camera housing centered while lyric mode uses
+            // substantially more room on its trailing side.
+            .offset(x: surfaceOffsetX)
             .clipShape(surface)
             .contentShape(surface)
             .onTapGesture {
@@ -143,7 +154,7 @@ struct NotchIslandView: View {
             hasMusic: state.hasMusic,
             isPomodoroRunning: state.isPomodoroRunning
         )
-        let wingWidth = NotchLayoutPolicy.compactWingWidth(
+        let wings = NotchLayoutPolicy.compactWingWidths(
             mode: settings.compactDisplayMode,
             hasMusic: state.hasMusic,
             isPomodoroRunning: state.isPomodoroRunning
@@ -154,7 +165,7 @@ struct NotchIslandView: View {
                 compactLeadingStatus
             }
             .padding(.trailing, 4)
-            .frame(width: wingWidth, height: size.height, alignment: .trailing)
+            .frame(width: wings.leading, height: size.height, alignment: .trailing)
 
             Color.clear
                 .frame(width: presentation.notchWidth, height: size.height)
@@ -164,7 +175,7 @@ struct NotchIslandView: View {
             }
             .font(.caption2.weight(.semibold))
             .padding(.leading, 4)
-            .frame(width: wingWidth, height: size.height, alignment: .leading)
+            .frame(width: wings.trailing, height: size.height, alignment: .leading)
         }
         .frame(width: size.width, height: size.height)
         .zIndex(3)
@@ -176,7 +187,7 @@ struct NotchIslandView: View {
             compactArtwork
         } else if state.isPomodoroRunning {
             Image(systemName: "timer")
-                .foregroundStyle(.orange)
+                .foregroundStyle(settings.islandAccentTheme.accent)
         } else if settings.compactDisplayMode != .minimal {
             Image(systemName: settings.compactDisplayMode == .time ? "clock" : "music.note")
                 .font(.caption.weight(.bold))
@@ -189,8 +200,6 @@ struct NotchIslandView: View {
         switch settings.compactDisplayMode {
         case .smart:
             compactSmartStatus
-        case .lyrics:
-            compactLyricStatus
         case .time:
             compactTimeStatus
         case .minimal:
@@ -213,27 +222,6 @@ struct NotchIslandView: View {
     }
 
     @ViewBuilder
-    private var compactLyricStatus: some View {
-        if state.hasMusic {
-            Text(CompactDisplayPolicy.lyricLabel(
-                currentLyric: state.currentLyricText,
-                isPlaying: state.isPlaying
-            ))
-            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(state.isPlaying ? 0.86 : 0.58))
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .truncationMode(.tail)
-            .help(state.currentLyricText.isEmpty ? state.musicTitle : state.currentLyricText)
-        } else if state.isPomodoroRunning {
-            compactFocusStatus(showsIcon: false)
-        } else {
-            Text("暂无歌词")
-                .foregroundStyle(.white.opacity(0.52))
-        }
-    }
-
-    @ViewBuilder
     private var compactTimeStatus: some View {
         if state.isPomodoroRunning {
             compactFocusStatus(showsIcon: state.hasMusic)
@@ -250,7 +238,7 @@ struct NotchIslandView: View {
     private var compactMinimalStatus: some View {
         if state.isPomodoroRunning {
             Circle()
-                .fill(.orange)
+                .fill(settings.islandAccentTheme.accent)
                 .frame(width: 6, height: 6)
                 .help("专注计时 (state.timerText)")
         } else if state.hasMusic {
@@ -306,7 +294,7 @@ struct NotchIslandView: View {
             }
             Text(state.timerText).monospacedDigit()
         }
-        .foregroundStyle(.orange)
+        .foregroundStyle(settings.islandAccentTheme.accent)
     }
 
     @ViewBuilder
@@ -405,20 +393,21 @@ private struct NotchSurface: Shape {
 /// camera housing. The old layout used the large curve radius as a content
 /// inset, which left an unnecessarily tall empty header above the player.
 enum NotchLayoutPolicy {
-    static func compactWingWidth(
+    struct CompactWingWidths: Equatable {
+        let leading: CGFloat
+        let trailing: CGFloat
+    }
+
+    static func compactWingWidths(
         mode: CompactDisplayMode,
         hasMusic: Bool,
         isPomodoroRunning: Bool
-    ) -> CGFloat {
+    ) -> CompactWingWidths {
+        // Keep the resting silhouette stable when playback or focus state
+        // changes and stay within the menu-bar strip above the active app.
         switch mode {
-        case .smart:
-            hasMusic && isPomodoroRunning ? 72 : 48
-        case .lyrics:
-            hasMusic ? 82 : (isPomodoroRunning ? 58 : 52)
-        case .time:
-            isPomodoroRunning && hasMusic ? 72 : 52
-        case .minimal:
-            32
+        case .smart, .time, .minimal:
+            CompactWingWidths(leading: 52, trailing: 52)
         }
     }
 
@@ -452,12 +441,6 @@ enum CompactPlaybackPolicy {
 }
 
 enum CompactDisplayPolicy {
-    static func lyricLabel(currentLyric: String, isPlaying: Bool) -> String {
-        let lyric = currentLyric.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !lyric.isEmpty else { return isPlaying ? "等待歌词" : "已暂停" }
-        return lyric
-    }
-
     static func clockLabel(at date: Date, calendar: Calendar = .current) -> String {
         let components = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)

@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/macOS-14.0%2B-blue?logo=apple" alt="macOS 14.0+">
   <img src="https://img.shields.io/badge/Swift-6.0-orange?logo=swift" alt="Swift 6.0">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-0.14.0--alpha-purple" alt="Version 0.14.0-alpha">
+  <img src="https://img.shields.io/badge/Version-0.14.4--alpha-purple" alt="Version 0.14.4-alpha">
 </p>
 
 ## 关于 Notchly
@@ -32,15 +32,15 @@ Notchly 是一款本地优先的 macOS 应用，把音乐信息、同步歌词�
 - 支持 Apple Music、Spotify，以及网易云音乐、QQ 音乐、酷狗、酷我和汽水音乐的系统媒体会话。
 - 播放器能力使用可注册适配器：Apple Music 与 Spotify 走公开 AppleScript 通道，国内播放器使用独立的 MediaRemote 兼容层。
 - 从网易云音乐和 LRCLIB 匹配同步歌词，支持歌词源自带译文、本地缓存与 ±3 秒校准。
-- 提供单行/双行桌面歌词、KTV 渐变、主题、字号和背景透明度设置。
+- 桌面歌词支持单行居中、双行居中滚动与 KTV 左右交替，并提供进度覆盖色、主题、字号和背景透明度设置。
 - 提供有界的最近播放与歌曲收藏：最近播放最多 50 首、收藏最多 100 首，均只保存在本机。
 - 提供频谱、波形、脉冲和“宇宙尘埃”四种本地模拟动效。
 - 支持专注计时、喝水与久坐提醒，以及电池和下一日程展示。
-- 电池、专注、日历、提醒事项和文件暂存使用统一模块注册表，可分别开启、关闭并自定义顺序。
+- 电池、专注、日历、提醒事项和文件暂存使用统一模块注册表；核心入口固定启用并采用稳定的默认顺序。
 - 提供工作、音乐、演示和省电场景预设；手动修改关联设置后自动回到自定义模式。
 - 支持临时文件拖入、Finder 定位、保存期限、容量上限和一键清空。
 - 可通过鼠标悬停、菜单栏图标或全局快捷键展开和收起。
-- 收起状态可选智能、歌词、时间或极简模式，并会自动限制长文本。
+- 收起状态可选智能、时间或极简模式；同步歌词保留在展开播放器与独立桌面歌词中。
 - 多显示器环境可选内建屏优先、主屏或随鼠标移动，无刘海外屏使用顶部虚拟岛。
 - 默认在其他应用进入 macOS 全屏空间时自动隐藏，也可在设置中关闭。
 - 可复制匿名诊断信息与反馈模板，用于排查长时间运行、内存和播放器通道问题。

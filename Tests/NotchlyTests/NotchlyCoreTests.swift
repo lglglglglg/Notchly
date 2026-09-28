@@ -129,11 +129,49 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertEqual(IslandRefreshPolicy.powerInterval(isExpanded: true), 30)
     }
 
+    func testBatteryLevelToneUsesWarningAndCriticalThresholds() {
+        XCTAssertEqual(BatteryLevelPolicy.tone(for: nil), .normal)
+        XCTAssertEqual(BatteryLevelPolicy.tone(for: 100), .normal)
+        XCTAssertEqual(BatteryLevelPolicy.tone(for: 21), .normal)
+        XCTAssertEqual(BatteryLevelPolicy.tone(for: 20), .warning)
+        XCTAssertEqual(BatteryLevelPolicy.tone(for: 11), .warning)
+        XCTAssertEqual(BatteryLevelPolicy.tone(for: 10), .critical)
+        XCTAssertEqual(BatteryLevelPolicy.tone(for: 0), .critical)
+    }
+
+    func testBatterySymbolDistinguishesChargingExternalPowerAndBatteryUse() {
+        XCTAssertEqual(
+            BatterySymbolPolicy.symbol(level: 72, connectionState: .charging),
+            "battery.100percent.bolt"
+        )
+        XCTAssertEqual(
+            BatterySymbolPolicy.symbol(level: 100, connectionState: .externalPower),
+            "powerplug.fill"
+        )
+        XCTAssertEqual(
+            BatterySymbolPolicy.symbol(level: 80, connectionState: .battery),
+            "battery.100percent"
+        )
+        XCTAssertEqual(
+            BatterySymbolPolicy.symbol(level: 18, connectionState: .battery),
+            "battery.25percent"
+        )
+    }
+
+    func testCalendarUrgencyHighlightsOnlyUpcomingTwoHourWindow() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertFalse(CalendarUrgencyPolicy.isImminent(startDate: nil, now: now))
+        XCTAssertFalse(CalendarUrgencyPolicy.isImminent(startDate: now.addingTimeInterval(-1), now: now))
+        XCTAssertTrue(CalendarUrgencyPolicy.isImminent(startDate: now.addingTimeInterval(60), now: now))
+        XCTAssertTrue(CalendarUrgencyPolicy.isImminent(startDate: now.addingTimeInterval(7_200), now: now))
+        XCTAssertFalse(CalendarUrgencyPolicy.isImminent(startDate: now.addingTimeInterval(7_201), now: now))
+    }
+
     func testPowerSavingSceneReducesOptionalWorkAndRefreshFrequency() throws {
         let configuration = try XCTUnwrap(IslandScenePreset.powerSaving.configuration)
         XCTAssertEqual(configuration.compactDisplayMode, .minimal)
         XCTAssertFalse(configuration.showsDesktopLyrics)
-        XCTAssertTrue(configuration.enabledCards.isEmpty)
+        XCTAssertEqual(configuration.enabledCards, IslandCardRegistry.requiredIDs)
         XCTAssertEqual(
             IslandRefreshPolicy.musicInterval(
                 isExpanded: false,
@@ -157,21 +195,23 @@ final class NotchlyCoreTests: XCTestCase {
     }
 
     func testScenePresetsHaveCompleteDeterministicConfigurations() throws {
+        XCTAssertEqual(CompactDisplayMode.allCases, [.smart, .time, .minimal])
+        XCTAssertNil(CompactDisplayMode(rawValue: "lyrics"))
         XCTAssertNil(IslandScenePreset.custom.configuration)
 
         let work = try XCTUnwrap(IslandScenePreset.work.configuration)
         XCTAssertEqual(work.compactDisplayMode, .smart)
-        XCTAssertEqual(work.enabledCards, IslandCardRegistry.defaultEnabledIDs.union([.reminders]))
+        XCTAssertEqual(work.enabledCards, IslandCardRegistry.requiredIDs)
         XCTAssertFalse(work.showsDesktopLyrics)
 
         let music = try XCTUnwrap(IslandScenePreset.music.configuration)
-        XCTAssertEqual(music.compactDisplayMode, .lyrics)
+        XCTAssertEqual(music.compactDisplayMode, .smart)
         XCTAssertTrue(music.showsDesktopLyrics)
 
         let presentation = try XCTUnwrap(IslandScenePreset.presentation.configuration)
         XCTAssertFalse(presentation.expandsOnHover)
         XCTAssertTrue(presentation.hidesIslandInFullScreen)
-        XCTAssertTrue(presentation.enabledCards.isEmpty)
+        XCTAssertEqual(presentation.enabledCards, IslandCardRegistry.requiredIDs)
     }
 
     func testIslandWindowPolicyHidesFromFullScreenSpacesByDefault() {
@@ -370,6 +410,25 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertEqual(LyricSyncPolicy.adjustedOffset(-2.8, by: -0.5), -3)
     }
 
+    func testDesktopLyricsLayoutMigratesLegacyDoubleLinePreference() {
+        XCTAssertEqual(
+            DesktopLyricsLayoutMode.resolved(savedValue: "alternatingKTV", legacyShowsNextLine: false),
+            .alternatingKTV
+        )
+        XCTAssertEqual(DesktopLyricsLayoutMode.resolved(savedValue: nil, legacyShowsNextLine: false), .single)
+        XCTAssertEqual(DesktopLyricsLayoutMode.resolved(savedValue: nil, legacyShowsNextLine: true), .stackedCentered)
+        XCTAssertEqual(DesktopLyricsLayoutMode.resolved(savedValue: nil, legacyShowsNextLine: nil), .stackedCentered)
+    }
+
+    func testDesktopLyricsKTVAlternatesWithoutMovingThePromotedLine() {
+        let even = DesktopLyricsLanePolicy.lanes(current: "A", next: "B", currentIndex: 0)
+        XCTAssertEqual(even, DesktopLyricsKTVLanes(topText: "A", bottomText: "B", currentIsTop: true))
+
+        let odd = DesktopLyricsLanePolicy.lanes(current: "B", next: "C", currentIndex: 1)
+        XCTAssertEqual(odd, DesktopLyricsKTVLanes(topText: "C", bottomText: "B", currentIsTop: false))
+        XCTAssertEqual(even.bottomText, odd.bottomText)
+    }
+
     func testTimeGreetingMatchesDayPeriods() {
         XCTAssertEqual(TimeGreetingPolicy.message(hour: 7), "早上好，新的一天慢慢来。")
         XCTAssertEqual(TimeGreetingPolicy.message(hour: 10), "上午好，记得喝口水。")
@@ -405,14 +464,7 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertEqual(CompactPlaybackPolicy.progress(elapsed: 300, duration: 240), 1)
     }
 
-    func testCompactDisplayUsesShortFallbacksAndMinuteClock() {
-        XCTAssertEqual(
-            CompactDisplayPolicy.lyricLabel(currentLyric: "  风经过了这里  ", isPlaying: true),
-            "风经过了这里"
-        )
-        XCTAssertEqual(CompactDisplayPolicy.lyricLabel(currentLyric: "", isPlaying: true), "等待歌词")
-        XCTAssertEqual(CompactDisplayPolicy.lyricLabel(currentLyric: "", isPlaying: false), "已暂停")
-
+    func testCompactDisplayUsesMinuteClock() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let date = calendar.date(from: DateComponents(year: 2026, month: 9, day: 26, hour: 8, minute: 5))!
@@ -488,25 +540,17 @@ final class NotchlyCoreTests: XCTestCase {
         XCTAssertEqual(Set(IslandCardRegistry.registrations.map(\.id)), Set(IslandCardID.allCases))
         XCTAssertEqual(
             IslandCardRegistry.defaultEnabledIDs,
-            Set(IslandCardID.allCases).subtracting([.reminders])
+            Set(IslandCardID.allCases)
         )
 
         let enabled: Set<IslandCardID> = [.calendar, .power, .pocket]
         XCTAssertEqual(
             IslandCardRegistry.orderedIDs(for: .musicFooter, enabledIDs: enabled),
-            [.power, .calendar, .pocket]
+            [.power, .focus, .calendar, .pocket]
         )
         XCTAssertEqual(
             IslandCardRegistry.orderedIDs(for: .idleDashboard, enabledIDs: enabled),
-            [.power, .calendar, .pocket]
-        )
-        XCTAssertEqual(
-            IslandCardLayoutPolicy.musicFooterControlsWidth(for: [.power, .calendar]),
-            159
-        )
-        XCTAssertEqual(
-            IslandCardLayoutPolicy.musicFooterControlsWidth(for: [.pocket]),
-            0
+            [.power, .calendar, .reminders, .focus, .pocket]
         )
     }
 
@@ -589,11 +633,22 @@ final class NotchlyCoreTests: XCTestCase {
             32,
             accuracy: 0.001
         )
-        XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(mode: .smart, hasMusic: false, isPomodoroRunning: false), 48)
-        XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(mode: .smart, hasMusic: true, isPomodoroRunning: true), 72)
-        XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(mode: .lyrics, hasMusic: true, isPomodoroRunning: false), 82)
-        XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(mode: .time, hasMusic: false, isPomodoroRunning: false), 52)
-        XCTAssertEqual(NotchLayoutPolicy.compactWingWidth(mode: .minimal, hasMusic: true, isPomodoroRunning: true), 32)
+        XCTAssertEqual(
+            NotchLayoutPolicy.compactWingWidths(mode: .smart, hasMusic: false, isPomodoroRunning: false),
+            .init(leading: 52, trailing: 52)
+        )
+        XCTAssertEqual(
+            NotchLayoutPolicy.compactWingWidths(mode: .smart, hasMusic: true, isPomodoroRunning: true),
+            .init(leading: 52, trailing: 52)
+        )
+        XCTAssertEqual(
+            NotchLayoutPolicy.compactWingWidths(mode: .time, hasMusic: false, isPomodoroRunning: false),
+            .init(leading: 52, trailing: 52)
+        )
+        XCTAssertEqual(
+            NotchLayoutPolicy.compactWingWidths(mode: .minimal, hasMusic: true, isPomodoroRunning: true),
+            .init(leading: 52, trailing: 52)
+        )
 
         let presentation = NotchPresentation()
         XCTAssertEqual(presentation.expandedSize(hasMusic: true), NSSize(width: 540, height: 250))

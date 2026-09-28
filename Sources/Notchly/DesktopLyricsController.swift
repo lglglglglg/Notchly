@@ -85,11 +85,15 @@ final class DesktopLyricsController: NSObject, NSWindowDelegate {
     }
 
     private func applySettings(_ settings: AppSettings) {
-        let showsSecondaryLine = settings.desktopLyricsShowsNextLine
-            || (settings.showsTranslatedLyrics && state.hasTranslatedLyrics)
-        let height: CGFloat = showsSecondaryLine
-            ? max(96, settings.desktopLyricsFontSize * 1.55 + 38)
-            : max(72, settings.desktopLyricsFontSize + 38)
+        let height: CGFloat
+        switch settings.desktopLyricsLayoutMode {
+        case .single:
+            height = max(72, settings.desktopLyricsFontSize + 38)
+        case .stackedCentered:
+            height = max(96, settings.desktopLyricsFontSize * 1.55 + 38)
+        case .alternatingKTV:
+            height = max(108, settings.desktopLyricsFontSize * 2 + 40)
+        }
         let oldCenter = panel.frame.center
         panel.setContentSize(NSSize(width: 700, height: height))
         panel.setFrameOrigin(NSPoint(x: oldCenter.x - 350, y: oldCenter.y - height / 2))
@@ -216,48 +220,14 @@ private struct DesktopLyricsView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(backgroundGradient)
 
-            VStack(spacing: 2) {
-                TimelineView(.animation(
-                    // Progress is derived from the playback clock locally.
-                    // Rendering at 30 fps is visually smooth while leaving
-                    // headroom for island transitions.
-                    minimumInterval: 1.0 / 30.0,
-                    paused: !state.isPlaying || !settings.showsDesktopLyrics
-                )) { context in
-                    KaraokeLyricText(
-                        text: desktopPrimaryText,
-                        fontSize: settings.desktopLyricsFontSize,
-                        progress: state.lyricProgress(at: context.date),
-                        isEnabled: settings.desktopLyricsKaraokeEnabled && !state.currentLyricText.isEmpty,
-                        colors: activeColors
-                    )
-                }
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: showsDesktopSecondaryLine ? .leading : .center
-                    )
-                    .id(state.currentLyricText)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-
-                if !desktopSecondaryText.isEmpty {
-                    HStack(spacing: 6) {
-                        if desktopSecondaryIsTranslation {
-                            Text("译")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                .foregroundStyle(accentColor.opacity(0.74))
-                        }
-                        Text(desktopSecondaryText)
-                            .font(.system(size: max(13, settings.desktopLyricsFontSize * 0.60), weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(desktopSecondaryIsTranslation ? 0.58 : 0.42))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                            .shadow(color: .black.opacity(0.6), radius: 2, y: 1)
-                    }
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: desktopSecondaryIsTranslation ? .leading : .trailing
-                    )
-                }
+            TimelineView(.animation(
+                // Progress is derived from the playback clock locally.
+                // Rendering at 30 fps is visually smooth while leaving
+                // headroom for island transitions.
+                minimumInterval: 1.0 / 30.0,
+                paused: !state.isPlaying || !settings.showsDesktopLyrics
+            )) { context in
+                desktopLyricsContent(progress: state.lyricProgress(at: context.date))
             }
             .padding(.horizontal, 26)
             .padding(.top, 7)
@@ -337,6 +307,107 @@ private struct DesktopLyricsView: View {
         .help(help)
     }
 
+    @ViewBuilder
+    private func desktopLyricsContent(progress: Double) -> some View {
+        switch settings.desktopLyricsLayoutMode {
+        case .single:
+            activeLyric(text: desktopPrimaryText, progress: progress, karaokeEnabled: settings.desktopLyricsKaraokeEnabled)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .id(state.currentLyricText)
+                .transition(.opacity)
+
+        case .stackedCentered:
+            VStack(spacing: 3) {
+                activeLyric(
+                    text: desktopPrimaryText,
+                    progress: progress,
+                    karaokeEnabled: settings.desktopLyricsKaraokeEnabled
+                )
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                if !desktopSecondaryText.isEmpty {
+                    secondaryLyric(
+                        text: desktopSecondaryText,
+                        showsTranslationBadge: desktopSecondaryIsTranslation,
+                        alignment: .center
+                    )
+                }
+            }
+            .id(state.currentLyricText)
+            .transition(.asymmetric(
+                insertion: .move(edge: .bottom).combined(with: .opacity),
+                removal: .move(edge: .top).combined(with: .opacity)
+            ))
+
+        case .alternatingKTV:
+            alternatingKTVLyrics(progress: progress)
+        }
+    }
+
+    private func activeLyric(text: String, progress: Double, karaokeEnabled: Bool) -> some View {
+        KaraokeLyricText(
+            text: text,
+            fontSize: settings.desktopLyricsFontSize,
+            progress: progress,
+            isEnabled: karaokeEnabled && !state.currentLyricText.isEmpty,
+            colors: activeColors
+        )
+    }
+
+    private func secondaryLyric(
+        text: String,
+        showsTranslationBadge: Bool = false,
+        fontScale: Double = 0.60,
+        alignment: Alignment
+    ) -> some View {
+        HStack(spacing: 6) {
+            if showsTranslationBadge {
+                Text("译")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(accentColor.opacity(0.74))
+            }
+            Text(text)
+                .font(.system(
+                    size: max(13, settings.desktopLyricsFontSize * fontScale),
+                    weight: .medium,
+                    design: .rounded
+                ))
+                .foregroundStyle(.white.opacity(showsTranslationBadge ? 0.58 : 0.42))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .shadow(color: .black.opacity(0.6), radius: 2, y: 1)
+        }
+        .frame(maxWidth: .infinity, alignment: alignment)
+    }
+
+    @ViewBuilder
+    private func alternatingKTVLyrics(progress: Double) -> some View {
+        let lanes = DesktopLyricsLanePolicy.lanes(
+            current: desktopPrimaryText,
+            next: state.nextLyricText,
+            currentIndex: state.currentLyricIndex
+        )
+
+        VStack(spacing: 3) {
+            if lanes.currentIsTop {
+                activeLyric(text: lanes.topText, progress: progress, karaokeEnabled: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if !lanes.topText.isEmpty {
+                secondaryLyric(text: lanes.topText, fontScale: 1, alignment: .leading)
+            }
+
+            if lanes.currentIsTop {
+                if !lanes.bottomText.isEmpty {
+                    secondaryLyric(text: lanes.bottomText, fontScale: 1, alignment: .trailing)
+                }
+            } else {
+                activeLyric(text: lanes.bottomText, progress: progress, karaokeEnabled: true)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .contentTransition(.opacity)
+    }
+
     private var accentColor: Color {
         switch settings.desktopLyricsTheme {
         case .white: .white
@@ -388,11 +459,7 @@ private struct DesktopLyricsView: View {
 
     private var desktopSecondaryText: String {
         if desktopSecondaryIsTranslation { return state.currentLyricTranslation }
-        return settings.desktopLyricsShowsNextLine ? state.nextLyricText : ""
-    }
-
-    private var showsDesktopSecondaryLine: Bool {
-        desktopSecondaryIsTranslation || settings.desktopLyricsShowsNextLine
+        return state.nextLyricText
     }
 }
 

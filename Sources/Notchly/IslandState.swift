@@ -35,8 +35,10 @@ final class IslandState: ObservableObject {
     @Published private(set) var batteryLevel: Int?
     @Published private(set) var batteryStatus = "正在读取电源状态"
     @Published private(set) var batteryTimeRemaining = ""
+    @Published private(set) var powerConnectionState: PowerConnectionState = .battery
     @Published private(set) var calendarTitle = "连接日历后显示下一项"
     @Published private(set) var calendarSubtitle = "你的日程只会保留在这台 Mac 上"
+    @Published private(set) var calendarStartDate: Date?
     @Published private(set) var isLoadingCalendar = false
     @Published private(set) var reminderTitle = "启用后显示下一条提醒"
     @Published private(set) var reminderSubtitle = "提醒内容只会在这台 Mac 上读取"
@@ -198,13 +200,16 @@ final class IslandState: ObservableObject {
                 if let event = try await calendarService.nextEvent(requestingAccessIfNeeded: true) {
                     calendarTitle = event.title ?? "未命名日程"
                     calendarSubtitle = event.startDate.notchlyRelativeDate
+                    calendarStartDate = event.startDate
                 } else {
                     calendarTitle = "未来 7 天没有日程"
                     calendarSubtitle = "享受一段安静的时间吧"
+                    calendarStartDate = nil
                 }
             } catch {
                 calendarTitle = "无法读取日历"
                 calendarSubtitle = "请在系统设置中允许 Notchly 访问日历"
+                calendarStartDate = nil
             }
         }
     }
@@ -595,6 +600,13 @@ final class IslandState: ObservableObject {
         )
     }
 
+    var currentLyricIndex: Int? {
+        guard !currentLyricText.isEmpty else { return nil }
+        return lyricLines.lastIndex {
+            abs($0.time - currentLyricStart) < 0.001 && $0.text == currentLyricText
+        }
+    }
+
     private func setPublishedLyrics(
         current: String,
         currentTranslation: String,
@@ -696,6 +708,7 @@ final class IslandState: ObservableObject {
         batteryLevel = snapshot.level
         batteryStatus = snapshot.status
         batteryTimeRemaining = snapshot.timeRemaining
+        powerConnectionState = snapshot.connectionState
     }
 
     func refreshAuthorizedServices() {
@@ -713,9 +726,11 @@ final class IslandState: ObservableObject {
                     if let event = try await calendarService.nextEvent(requestingAccessIfNeeded: false) {
                         calendarTitle = event.title ?? "未命名日程"
                         calendarSubtitle = event.startDate.notchlyRelativeDate
+                        calendarStartDate = event.startDate
                     } else {
                         calendarTitle = "未来 7 天没有日程"
                         calendarSubtitle = "享受一段安静的时间吧"
+                        calendarStartDate = nil
                     }
                 } catch {
                     // Keep the last successfully loaded event when a refresh fails.

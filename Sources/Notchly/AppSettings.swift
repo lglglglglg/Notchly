@@ -22,7 +22,6 @@ enum MusicVisualizerStyle: String, CaseIterable, Identifiable {
 
 enum CompactDisplayMode: String, CaseIterable, Identifiable {
     case smart
-    case lyrics
     case time
     case minimal
 
@@ -31,7 +30,6 @@ enum CompactDisplayMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .smart: "智能"
-        case .lyrics: "歌词"
         case .time: "时间"
         case .minimal: "极简"
         }
@@ -40,7 +38,6 @@ enum CompactDisplayMode: String, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .smart: "专注计时优先，其次显示播放进度或问候"
-        case .lyrics: "显示当前歌词，无歌词时使用简短状态"
         case .time: "显示当前时间，专注时显示剩余时间"
         case .minimal: "仅保留封面与播放状态符号"
         }
@@ -94,9 +91,9 @@ enum IslandScenePreset: String, CaseIterable, Identifiable {
         switch self {
         case .custom: "保留当前逐项设置，不主动改变界面或后台刷新策略。"
         case .work: "使用智能收起状态，保留全部效率卡片，并关闭桌面歌词。"
-        case .music: "歌词优先，启用桌面歌词与完整音乐动效，保留全部卡片。"
+        case .music: "使用智能收起状态，启用桌面歌词与完整音乐动效，保留全部卡片。"
         case .presentation: "关闭悬停展开和桌面歌词，全屏时隐藏，并使用极简收起状态。"
-        case .powerSaving: "停止可选卡片轮询与装饰动效，降低媒体轮询频率并使用极简状态。"
+        case .powerSaving: "减少装饰动效与媒体轮询频率，并使用稳定宽度的极简收起状态。"
         }
     }
 
@@ -111,16 +108,16 @@ enum IslandScenePreset: String, CaseIterable, Identifiable {
                 hidesIslandInFullScreen: true,
                 musicVisualizerStyle: .spectrum,
                 showsDesktopLyrics: false,
-                enabledCards: IslandCardRegistry.defaultEnabledIDs.union([.reminders])
+                enabledCards: IslandCardRegistry.requiredIDs
             )
         case .music:
             IslandSceneConfiguration(
-                compactDisplayMode: .lyrics,
+                compactDisplayMode: .smart,
                 expandsOnHover: true,
                 hidesIslandInFullScreen: true,
                 musicVisualizerStyle: .cosmicDust,
                 showsDesktopLyrics: true,
-                enabledCards: IslandCardRegistry.defaultEnabledIDs
+                enabledCards: IslandCardRegistry.requiredIDs
             )
         case .presentation:
             IslandSceneConfiguration(
@@ -129,7 +126,7 @@ enum IslandScenePreset: String, CaseIterable, Identifiable {
                 hidesIslandInFullScreen: true,
                 musicVisualizerStyle: .pulse,
                 showsDesktopLyrics: false,
-                enabledCards: []
+                enabledCards: IslandCardRegistry.requiredIDs
             )
         case .powerSaving:
             IslandSceneConfiguration(
@@ -138,7 +135,7 @@ enum IslandScenePreset: String, CaseIterable, Identifiable {
                 hidesIslandInFullScreen: true,
                 musicVisualizerStyle: .pulse,
                 showsDesktopLyrics: false,
-                enabledCards: []
+                enabledCards: IslandCardRegistry.requiredIDs
             )
         }
     }
@@ -222,6 +219,52 @@ enum DesktopLyricsTheme: String, CaseIterable, Identifiable {
     }
 }
 
+enum DesktopLyricsLayoutMode: String, CaseIterable, Identifiable {
+    case single
+    case stackedCentered
+    case alternatingKTV
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .single: "单行"
+        case .stackedCentered: "双行居中"
+        case .alternatingKTV: "KTV 交替"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .single: "当前歌词居中"
+        case .stackedCentered: "上下居中切换"
+        case .alternatingKTV: "左右轨道交替点亮"
+        }
+    }
+
+    static func resolved(savedValue: String?, legacyShowsNextLine: Bool?) -> DesktopLyricsLayoutMode {
+        if let savedValue, let mode = DesktopLyricsLayoutMode(rawValue: savedValue) {
+            return mode
+        }
+        return legacyShowsNextLine == false ? .single : .stackedCentered
+    }
+}
+
+struct DesktopLyricsKTVLanes: Equatable {
+    let topText: String
+    let bottomText: String
+    let currentIsTop: Bool
+}
+
+enum DesktopLyricsLanePolicy {
+    static func lanes(current: String, next: String, currentIndex: Int?) -> DesktopLyricsKTVLanes {
+        let currentIsTop = (currentIndex ?? 0).isMultiple(of: 2)
+        return currentIsTop
+            ? DesktopLyricsKTVLanes(topText: current, bottomText: next, currentIsTop: true)
+            : DesktopLyricsKTVLanes(topText: next, bottomText: current, currentIsTop: false)
+    }
+}
+
 @MainActor
 final class AppSettings: ObservableObject {
     static let islandLayoutDidChange = Notification.Name("Notchly.islandLayoutDidChange")
@@ -291,7 +334,7 @@ final class AppSettings: ObservableObject {
             NotificationCenter.default.post(name: Self.desktopLyricsDidChange, object: self)
         }
     }
-    @Published var desktopLyricsShowsNextLine: Bool { didSet { saveDesktopLyricsPreferences() } }
+    @Published var desktopLyricsLayoutMode: DesktopLyricsLayoutMode { didSet { saveDesktopLyricsPreferences() } }
     @Published var desktopLyricsKaraokeEnabled: Bool { didSet { saveDesktopLyricsPreferences() } }
     @Published var desktopLyricsFontSize: Double { didSet { saveDesktopLyricsPreferences() } }
     @Published var desktopLyricsBackgroundOpacity: Double { didSet { saveDesktopLyricsPreferences() } }
@@ -320,9 +363,14 @@ final class AppSettings: ObservableObject {
         expandsOnHover = defaults.object(forKey: "interaction.hoverPreview") as? Bool ?? true
         autoCollapseDelay = min(max(defaults.object(forKey: "interaction.collapseDelay") as? Double ?? 0.65, 0.3), 2.0)
         hidesIslandInFullScreen = defaults.object(forKey: "interaction.hideInFullScreen") as? Bool ?? true
-        compactDisplayMode = CompactDisplayMode(
-            rawValue: defaults.string(forKey: "island.compactDisplayMode") ?? ""
-        ) ?? .smart
+        let savedCompactMode = defaults.string(forKey: "island.compactDisplayMode") ?? ""
+        compactDisplayMode = CompactDisplayMode(rawValue: savedCompactMode) ?? .smart
+        // 0.14.3 removes compact lyrics because the notch wing cannot provide
+        // a consistently readable line length. Migrate that retired value to
+        // the stable smart layout instead of keeping an invalid preference.
+        if savedCompactMode == "lyrics" {
+            defaults.set(CompactDisplayMode.smart.rawValue, forKey: "island.compactDisplayMode")
+        }
         islandDisplayStrategy = IslandDisplayStrategy(
             rawValue: defaults.string(forKey: "island.displayStrategy") ?? ""
         ) ?? .builtInPreferred
@@ -338,7 +386,10 @@ final class AppSettings: ObservableObject {
         lyricOffset = min(max(defaults.object(forKey: "music.lyricOffset") as? Double ?? 0, -3), 3)
         showsTranslatedLyrics = defaults.object(forKey: "music.translatedLyrics") as? Bool ?? true
         showsDesktopLyrics = defaults.object(forKey: "music.desktopLyrics") as? Bool ?? false
-        desktopLyricsShowsNextLine = defaults.object(forKey: "desktopLyrics.nextLine") as? Bool ?? true
+        desktopLyricsLayoutMode = DesktopLyricsLayoutMode.resolved(
+            savedValue: defaults.string(forKey: "desktopLyrics.layoutMode"),
+            legacyShowsNextLine: defaults.object(forKey: "desktopLyrics.nextLine") as? Bool
+        )
         desktopLyricsKaraokeEnabled = defaults.object(forKey: "desktopLyrics.karaokeFill") as? Bool ?? true
         desktopLyricsFontSize = min(max(defaults.object(forKey: "desktopLyrics.fontSize") as? Double ?? 24, 18), 38)
         desktopLyricsBackgroundOpacity = min(max(defaults.object(forKey: "desktopLyrics.backgroundOpacity") as? Double ?? 0.58, 0), 0.85)
@@ -382,19 +433,6 @@ final class AppSettings: ObservableObject {
 
     func isIslandCardEnabled(_ id: IslandCardID) -> Bool {
         enabledIslandCards.contains(id)
-    }
-
-    func setIslandCardEnabled(_ id: IslandCardID, enabled: Bool) {
-        var updated = enabledIslandCards
-        if enabled {
-            updated.insert(id)
-        } else {
-            updated.remove(id)
-        }
-        updated = IslandCardRegistry.sanitized(updated)
-        guard updated != enabledIslandCards else { return }
-        saveEnabledIslandCards(updated)
-        markIslandSceneCustomized()
     }
 
     var prefersReducedActivity: Bool {
@@ -480,7 +518,7 @@ final class AppSettings: ObservableObject {
 
     private func saveDesktopLyricsPreferences() {
         let defaults = UserDefaults.standard
-        defaults.set(desktopLyricsShowsNextLine, forKey: "desktopLyrics.nextLine")
+        defaults.set(desktopLyricsLayoutMode.rawValue, forKey: "desktopLyrics.layoutMode")
         defaults.set(desktopLyricsKaraokeEnabled, forKey: "desktopLyrics.karaokeFill")
         defaults.set(desktopLyricsFontSize, forKey: "desktopLyrics.fontSize")
         defaults.set(desktopLyricsBackgroundOpacity, forKey: "desktopLyrics.backgroundOpacity")

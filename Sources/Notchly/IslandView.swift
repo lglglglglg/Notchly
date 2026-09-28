@@ -7,6 +7,7 @@ struct IslandView: View {
     @ObservedObject private var settings: AppSettings
     @ObservedObject private var pocket: PocketService
     @ObservedObject private var musicLibrary: MusicLibraryService
+    @State private var showsFocusActions = false
     @State private var showsCalendarDetails = false
     @State private var showsReminderDetails = false
     @State private var showsPocket = false
@@ -51,6 +52,7 @@ struct IslandView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.easeInOut(duration: 0.45), value: settings.showsWelcome)
+        .onChange(of: showsFocusActions) { _, _ in updatePopoverRetention() }
         .onChange(of: showsPocket) { _, _ in updatePopoverRetention() }
         .onChange(of: showsCalendarDetails) { _, _ in updatePopoverRetention() }
         .onChange(of: showsReminderDetails) { _, _ in updatePopoverRetention() }
@@ -183,15 +185,9 @@ struct IslandView: View {
 
             if !musicFooterCards.isEmpty {
                 HStack(spacing: 8) {
-                    if !musicFooterControlCards.isEmpty {
-                        footerSystemControls(cards: musicFooterControlCards)
-                            .frame(width: IslandCardLayoutPolicy.musicFooterControlsWidth(for: musicFooterControlCards))
-                    }
-                    if musicFooterCards.contains(.pocket) {
-                        pocketDropRow
+                    ForEach(musicFooterCards) { card in
+                        musicFooterCard(card)
                             .frame(maxWidth: .infinity)
-                    } else {
-                        Spacer(minLength: 0)
                     }
                 }
                 .padding(.horizontal, 56)
@@ -202,47 +198,29 @@ struct IslandView: View {
     }
 
     private var musicFooterCards: [IslandCardID] {
-        IslandCardRegistry.orderedIDs(
-            for: .musicFooter,
-            enabledIDs: settings.enabledIslandCards,
-            preferredOrder: settings.islandCardOrder(for: .musicFooter)
-        )
-    }
-
-    private var musicFooterControlCards: [IslandCardID] {
-        musicFooterCards.filter { $0 != .pocket }
-    }
-
-    private func footerSystemControls(cards: [IslandCardID]) -> some View {
-        HStack(spacing: 0) {
-            ForEach(cards.indices, id: \.self) { index in
-                if index > cards.startIndex {
-                    Divider()
-                        .overlay(.white.opacity(0.10))
-                        .padding(.vertical, 9)
-                }
-                footerSystemControl(cards[index])
-            }
-        }
-        .font(.callout.weight(.semibold))
-        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(.white.opacity(0.055), lineWidth: 0.5)
-        }
+        IslandCardRegistry.defaultOrder(for: .musicFooter)
     }
 
     @ViewBuilder
-    private func footerSystemControl(_ card: IslandCardID) -> some View {
+    private func musicFooterCard(_ card: IslandCardID) -> some View {
         switch card {
         case .power:
             Button { state.refreshPower() } label: {
-                Label(batteryFooterTitle, systemImage: batterySymbol)
-                    .frame(width: 72)
-                    .frame(minHeight: 42)
+                HStack(spacing: 6) {
+                    Image(systemName: batterySymbol)
+                        .foregroundStyle(batteryTint)
+                    Text(batteryFooterTitle)
+                        .foregroundStyle(batteryTint)
+                }
+                    .frame(maxWidth: .infinity, minHeight: 42)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(batteryTint)
+            .font(.callout.weight(.semibold))
+            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(.white.opacity(0.055), lineWidth: 0.5)
+            }
             .help([state.batteryStatus, state.batteryTimeRemaining].filter { !$0.isEmpty }.joined(separator: " · "))
         case .focus:
             footerFocusControl
@@ -251,12 +229,21 @@ struct IslandView: View {
                 showsCalendarDetails.toggle()
                 if showsCalendarDetails { state.connectCalendar() }
             } label: {
-                Label("日历", systemImage: "calendar")
-                    .frame(width: 86)
-                    .frame(minHeight: 42)
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(calendarTint)
+                    Text("日历")
+                        .foregroundStyle(.secondary)
+                }
+                    .frame(maxWidth: .infinity, minHeight: 42)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .font(.callout.weight(.semibold))
+            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(.white.opacity(0.055), lineWidth: 0.5)
+            }
             .help("查看下一项日程")
             .popover(isPresented: $showsCalendarDetails, arrowEdge: .bottom) {
                 calendarPopover
@@ -264,55 +251,51 @@ struct IslandView: View {
         case .reminders:
             EmptyView()
         case .pocket:
-            EmptyView()
+            pocketDropRow
         }
     }
 
     private var footerFocusControl: some View {
-        Menu {
-            Button(state.isPomodoroRunning ? "暂停专注" : "开始 \(settings.focusMinutes) 分钟专注") {
-                state.togglePomodoro()
-            }
-            Button("重新开始") {
-                state.resetPomodoro()
-                state.togglePomodoro()
-            }
-            Button("重置计时") { state.resetPomodoro() }
+        Button {
+            showsFocusActions.toggle()
         } label: {
-            HStack(spacing: 7) {
+            HStack(spacing: 6) {
                 Image(systemName: "timer")
+                    .foregroundStyle(focusTint)
                 Text(state.isPomodoroRunning ? state.timerText : "专注")
                     .monospacedDigit()
-                    // Reserve the same title slot for the idle label and every
-                    // supported timer value, so ticking never shifts its neighbors.
-                    .frame(width: 58, alignment: .leading)
+                    .foregroundStyle(focusTint)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
-            .contentShape(Rectangle())
+            .font(.callout.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 42)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .menuStyle(.borderlessButton)
-        .foregroundStyle(.orange)
-        .frame(width: 132)
+        .buttonStyle(.plain)
+        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(.white.opacity(0.055), lineWidth: 0.5)
+        }
         .help("专注计时")
+        .popover(isPresented: $showsFocusActions, arrowEdge: .bottom) {
+            focusActionsPopover
+        }
     }
 
     private var pocketDropRow: some View {
         Button { showsPocket.toggle() } label: {
-            HStack(spacing: 7) {
-                Image(systemName: isPocketDropTarget ? "tray.and.arrow.down.fill" : (pocket.items.isEmpty ? "tray" : "tray.full"))
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(isPocketDropTarget ? .white : settings.islandAccentTheme.accent)
-                Text(pocketDropTitle)
-                    .font(.callout.weight(.semibold))
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.tertiary)
-            }
+            Label(
+                pocketDropTitle,
+                systemImage: isPocketDropTarget ? "tray.and.arrow.down.fill" : (pocket.items.isEmpty ? "tray" : "tray.full")
+            )
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(isPocketDropTarget ? .white : pocketTint)
+            .lineLimit(1)
             .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 42)
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -352,8 +335,37 @@ struct IslandView: View {
 
     private func updatePopoverRetention() {
         state.setIslandPopoverPresented(
-            showsPocket || showsCalendarDetails || showsReminderDetails || showsMusicLibrary
+            showsFocusActions || showsPocket || showsCalendarDetails || showsReminderDetails || showsMusicLibrary
         )
+    }
+
+    private var focusActionsPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("专注计时", systemImage: "timer")
+                .font(.headline)
+            Text(state.isPomodoroRunning ? "剩余 \(state.timerText)" : "准备开始 \(settings.focusMinutes) 分钟专注")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button(state.isPomodoroRunning ? "暂停专注" : "开始专注") {
+                state.togglePomodoro()
+                showsFocusActions = false
+            }
+            .buttonStyle(.borderedProminent)
+            HStack {
+                Button("重新开始") {
+                    state.resetPomodoro()
+                    state.togglePomodoro()
+                    showsFocusActions = false
+                }
+                Spacer()
+                Button("重置") {
+                    state.resetPomodoro()
+                    showsFocusActions = false
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 230, alignment: .leading)
     }
 
     private var artistAndAlbum: Text {
@@ -446,11 +458,7 @@ struct IslandView: View {
     }
 
     private var idleDashboardCards: [IslandCardID] {
-        IslandCardRegistry.orderedIDs(
-            for: .idleDashboard,
-            enabledIDs: settings.enabledIslandCards,
-            preferredOrder: settings.islandCardOrder(for: .idleDashboard)
-        )
+        IslandCardRegistry.defaultOrder(for: .idleDashboard)
     }
 
     @ViewBuilder
@@ -461,7 +469,7 @@ struct IslandView: View {
                 state.refreshPower()
             }
         case .calendar:
-            infoButton(icon: "calendar", title: "下一日程", tint: .blue) {
+            infoButton(icon: "calendar", title: "下一日程", tint: calendarTint) {
                 showsCalendarDetails.toggle()
                 if showsCalendarDetails { state.connectCalendar() }
             }
@@ -469,7 +477,12 @@ struct IslandView: View {
                 calendarPopover
             }
         case .focus:
-            infoButton(icon: "timer", title: state.isPomodoroRunning ? state.timerText : "专注", tint: .orange) {
+            infoButton(
+                icon: "timer",
+                title: state.isPomodoroRunning ? state.timerText : "专注",
+                tint: focusTint,
+                titleTint: focusTint
+            ) {
                 state.togglePomodoro()
             }
         case .reminders:
@@ -484,7 +497,8 @@ struct IslandView: View {
             infoButton(
                 icon: pocket.items.isEmpty ? "tray" : "tray.full",
                 title: pocket.items.isEmpty ? "托盘" : "\(pocket.items.count) 项",
-                tint: .purple
+                tint: pocketTint,
+                titleTint: pocket.items.isEmpty ? .secondary : settings.islandAccentTheme.accent
             ) {
                 showsPocket.toggle()
             }
@@ -494,13 +508,20 @@ struct IslandView: View {
         }
     }
 
-    private func infoButton(icon: String, title: String, tint: Color, action: @escaping () -> Void) -> some View {
+    private func infoButton(
+        icon: String,
+        title: String,
+        tint: Color,
+        titleTint: Color = .secondary,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .foregroundStyle(tint)
                 Text(title)
                     .lineLimit(1)
+                    .foregroundStyle(titleTint)
             }
             .font(.caption.weight(.semibold))
             .frame(maxWidth: .infinity)
@@ -709,18 +730,34 @@ struct IslandView: View {
     }
 
     private var batterySymbol: String {
-        guard let level = state.batteryLevel else { return "battery.0percent" }
-        if state.batteryStatus.contains("充电") { return "battery.100percent.bolt" }
-        if level >= 75 { return "battery.100percent" }
-        if level >= 35 { return "battery.50percent" }
-        return "battery.25percent"
+        BatterySymbolPolicy.symbol(
+            level: state.batteryLevel,
+            connectionState: state.powerConnectionState
+        )
     }
 
     private var batteryTint: Color {
-        guard let level = state.batteryLevel else { return .secondary }
-        if state.batteryStatus.contains("充电") { return .green }
-        if level <= 20 { return .red }
-        return .green
+        switch BatteryLevelPolicy.tone(for: state.batteryLevel) {
+        case .normal: .secondary
+        case .warning: .yellow
+        case .critical: .red
+        }
+    }
+
+    private var focusTint: Color {
+        state.isPomodoroRunning ? settings.islandAccentTheme.accent : .secondary
+    }
+
+    private var calendarTint: Color {
+        CalendarUrgencyPolicy.isImminent(startDate: state.calendarStartDate)
+            ? settings.islandAccentTheme.accent
+            : .secondary
+    }
+
+    private var pocketTint: Color {
+        pocket.items.isEmpty && !isPocketDropTarget
+            ? .secondary
+            : settings.islandAccentTheme.accent
     }
 
     private var calendarPopover: some View {
@@ -1038,7 +1075,6 @@ struct SettingsView: View {
     private let state: IslandState
     @ObservedObject private var settings: AppSettings
     @State private var aboutMessage: String?
-    @State private var cardOrderContext = IslandCardContext.musicFooter
 
     init(state: IslandState) {
         self.state = state
@@ -1178,7 +1214,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 Text(settings.activeIslandScenePreset.detail)
                     .settingsHint()
-                Text("套用预设会调整悬停展开、全屏行为、收起状态、音乐动效、桌面歌词和模块开关；之后手动修改这些选项会自动切回“自定义”。")
+                Text("套用预设会调整悬停展开、全屏行为、收起状态、音乐动效和桌面歌词；核心模块始终保留。之后手动修改这些选项会自动切回“自定义”。")
                     .settingsHint()
             }
 
@@ -1214,7 +1250,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 Text(settings.compactDisplayMode.detail)
                     .settingsHint()
-                Text("歌词模式仅显示当前句并在有限空间内自动截断；极简模式不运行常驻时间刷新。")
+                Text("收起状态不显示歌词，避免刘海翼侧空间不足和遮挡下方应用；歌词仍可在展开播放器或桌面歌词中查看。极简模式不运行常驻时间刷新。")
                     .settingsHint()
             }
 
@@ -1278,64 +1314,6 @@ struct SettingsView: View {
                     .settingsHint()
             }
 
-            SettingsCard(title: "模块卡片", icon: "rectangle.3.group") {
-                Picker("排序区域", selection: $cardOrderContext) {
-                    ForEach(IslandCardContext.allCases) { context in
-                        Text(context.title).tag(context)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-
-                ForEach(Array(settings.islandCardOrder(for: cardOrderContext).enumerated()), id: \.element) { index, id in
-                    if index > 0 {
-                        Divider()
-                    }
-                    if let card = IslandCardRegistry.registration(for: id) {
-                        SettingLine(title: card.title, detail: card.detail) {
-                            HStack(spacing: 8) {
-                                Toggle("", isOn: islandCardEnabledBinding(card.id))
-                                    .labelsHidden()
-                                Button {
-                                    settings.moveIslandCard(card.id, by: -1, in: cardOrderContext)
-                                } label: {
-                                    Image(systemName: "chevron.up")
-                                }
-                                .buttonStyle(.borderless)
-                                .disabled(!settings.canMoveIslandCard(card.id, by: -1, in: cardOrderContext))
-                                .help("向前移动")
-                                .accessibilityLabel("将\(card.title)向前移动")
-                                Button {
-                                    settings.moveIslandCard(card.id, by: 1, in: cardOrderContext)
-                                } label: {
-                                    Image(systemName: "chevron.down")
-                                }
-                                .buttonStyle(.borderless)
-                                .disabled(!settings.canMoveIslandCard(card.id, by: 1, in: cardOrderContext))
-                                .help("向后移动")
-                                .accessibilityLabel("将\(card.title)向后移动")
-                            }
-                            .fixedSize()
-                        }
-                    }
-                }
-                HStack(alignment: .firstTextBaseline) {
-                    Text(cardOrderContext.orderingHint)
-                        .settingsHint()
-                    Spacer()
-                    Button("恢复默认") {
-                        settings.resetIslandCardOrder(in: cardOrderContext)
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(
-                        settings.islandCardOrder(for: cardOrderContext)
-                            == IslandCardRegistry.defaultOrder(for: cardOrderContext)
-                    )
-                }
-                Text("顺序和开关会保存在本机；关闭电池后会同时停止后台电源轮询。")
-                    .settingsHint()
-            }
-
             SettingsCard(title: "临时文件托盘", icon: "tray.full") {
                 SettingLine(title: "自动清理", detail: "超过保存期限的暂存副本会被删除") {
                     Stepper("保留 \(settings.pocketRetentionDays) 天", value: $settings.pocketRetentionDays, in: 1...30)
@@ -1362,13 +1340,6 @@ struct SettingsView: View {
         NSWorkspace.shared.open(url)
     }
 
-    private func islandCardEnabledBinding(_ id: IslandCardID) -> Binding<Bool> {
-        Binding(
-            get: { settings.isIslandCardEnabled(id) },
-            set: { settings.setIslandCardEnabled(id, enabled: $0) }
-        )
-    }
-
     private var desktopLyricsSettings: some View {
         SettingsPage(title: "桌面歌词", subtitle: "浮窗外观与显示行为") {
             LyricsSettingsPreview(settings: settings)
@@ -1378,20 +1349,26 @@ struct SettingsView: View {
                     Toggle("", isOn: $settings.showsDesktopLyrics).labelsHidden()
                 }
                 Divider()
-                SettingLine(title: "显示方式", detail: "双行时当前句居左、下一句居右") {
-                    Picker("显示方式", selection: $settings.desktopLyricsShowsNextLine) {
-                        Text("单行").tag(false)
-                        Text("双行").tag(true)
+                SettingLine(title: "显示方式", detail: settings.desktopLyricsLayoutMode.detail) {
+                    Picker("显示方式", selection: $settings.desktopLyricsLayoutMode) {
+                        ForEach(DesktopLyricsLayoutMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
-                    .frame(width: 132)
+                    .frame(width: 280)
                 }
-                Text("开启音乐设置中的“显示翻译”后，有译文的歌曲会优先将第二行用于当前歌词翻译。")
-                    .settingsHint()
                 Divider()
-                SettingLine(title: "KTV 覆盖色", detail: "颜色跟随当前歌词的播放进度推进") {
-                    Toggle("", isOn: $settings.desktopLyricsKaraokeEnabled).labelsHidden()
+                SettingLine(
+                    title: "KTV 覆盖色",
+                    detail: settings.desktopLyricsLayoutMode == .alternatingKTV
+                        ? "KTV 交替模式固定启用"
+                        : "颜色跟随当前歌词的播放进度推进"
+                ) {
+                    Toggle("", isOn: effectiveDesktopLyricsKaraokeBinding)
+                        .labelsHidden()
+                        .disabled(settings.desktopLyricsLayoutMode == .alternatingKTV)
                 }
                 Divider()
                 SettingLine(title: "锁定歌词", detail: "锁定后允许鼠标穿透，不影响桌面操作") {
@@ -1424,10 +1401,17 @@ struct SettingsView: View {
                 }
             }
 
-            Text("支持：网易云音乐、QQ音乐、酷狗音乐、酷我音乐、汽水音乐、Apple Music 与 Spotify 桌面版。")
-                .settingsHint()
-                .padding(.horizontal, 4)
         }
+    }
+
+    private var effectiveDesktopLyricsKaraokeBinding: Binding<Bool> {
+        Binding(
+            get: {
+                settings.desktopLyricsLayoutMode == .alternatingKTV
+                    || settings.desktopLyricsKaraokeEnabled
+            },
+            set: { settings.desktopLyricsKaraokeEnabled = $0 }
+        )
     }
 
     private var aboutSettings: some View {
@@ -1562,8 +1546,6 @@ struct SettingsView: View {
             .filter { settings.enabledIslandCards.contains($0.id) }
             .map(\.title)
             .joined(separator: "、")
-        let musicCardOrder = cardOrderDescription(for: .musicFooter)
-        let idleCardOrder = cardOrderDescription(for: .idleDashboard)
         return """
         \(DiagnosticStore.shared.formattedSnapshot(appVersion: appVersion, buildNumber: buildNumber))
 
@@ -1571,17 +1553,9 @@ struct SettingsView: View {
         场景预设：\(settings.activeIslandScenePreset.title)
         显示器策略：\(settings.islandDisplayStrategy.title)
         收起状态：\(settings.compactDisplayMode.title)
-        启用卡片：\(enabledCards.isEmpty ? "无" : enabledCards)
-        音乐区卡片顺序：\(musicCardOrder)
-        待机卡片顺序：\(idleCardOrder)
+        固定模块：\(enabledCards)
         全屏自动隐藏：\(settings.hidesIslandInFullScreen ? "开启" : "关闭")
         """
-    }
-
-    private func cardOrderDescription(for context: IslandCardContext) -> String {
-        settings.islandCardOrder(for: context)
-            .compactMap { IslandCardRegistry.registration(for: $0)?.title }
-            .joined(separator: " → ")
     }
 
     private func copyDiagnosticInfo() {
@@ -1709,33 +1683,10 @@ private struct LyricsSettingsPreview: View {
     @ObservedObject var settings: AppSettings
 
     var body: some View {
-        VStack(spacing: 3) {
-            ZStack {
-                previewText.foregroundStyle(.white.opacity(settings.desktopLyricsKaraokeEnabled ? 0.28 : 0.96))
-                if settings.desktopLyricsKaraokeEnabled {
-                    previewText
-                        .foregroundStyle(LinearGradient(colors: activeColors, startPoint: .leading, endPoint: .trailing))
-                        .mask {
-                            GeometryReader { proxy in
-                                Rectangle()
-                                    .frame(width: proxy.size.width * 0.58)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: settings.desktopLyricsShowsNextLine ? .leading : .center)
-
-            if settings.desktopLyricsShowsNextLine {
-                Text("下一句会轻轻出现在这里")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.42))
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
+        previewContent
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity)
-        .frame(height: settings.desktopLyricsShowsNextLine ? 70 : 54)
+        .frame(height: settings.desktopLyricsLayoutMode == .single ? 54 : 78)
         .background(
             LinearGradient(
                 colors: [.black.opacity(settings.desktopLyricsBackgroundOpacity), tint.opacity(settings.desktopLyricsBackgroundOpacity)],
@@ -1750,6 +1701,61 @@ private struct LyricsSettingsPreview: View {
                 .foregroundStyle(.white.opacity(0.55))
                 .padding(10)
         }
+    }
+
+    @ViewBuilder
+    private var previewContent: some View {
+        switch settings.desktopLyricsLayoutMode {
+        case .single:
+            previewActiveLyric(karaokeEnabled: settings.desktopLyricsKaraokeEnabled)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+        case .stackedCentered:
+            VStack(spacing: 3) {
+                previewActiveLyric(karaokeEnabled: settings.desktopLyricsKaraokeEnabled)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                previewUpcomingLyric("下一句会上移并淡入")
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+
+        case .alternatingKTV:
+            VStack(spacing: 3) {
+                previewActiveLyric(karaokeEnabled: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                previewUpcomingLyric("下一句保持在右侧等待")
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+    }
+
+    private func previewActiveLyric(karaokeEnabled: Bool) -> some View {
+        ZStack {
+            previewText.foregroundStyle(.white.opacity(karaokeEnabled ? 0.28 : 0.96))
+            if karaokeEnabled {
+                previewText
+                    .foregroundStyle(LinearGradient(colors: activeColors, startPoint: .leading, endPoint: .trailing))
+                    .mask {
+                        GeometryReader { proxy in
+                            Rectangle()
+                                .frame(width: proxy.size.width * 0.58)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+            }
+        }
+    }
+
+    private func previewUpcomingLyric(_ text: String) -> some View {
+        Text(text)
+            .font(.system(
+                size: settings.desktopLyricsLayoutMode == .alternatingKTV
+                    ? min(settings.desktopLyricsFontSize, 28)
+                    : 12,
+                weight: .medium,
+                design: .rounded
+            ))
+            .foregroundStyle(.white.opacity(0.42))
+            .lineLimit(1)
     }
 
     private var previewText: some View {
