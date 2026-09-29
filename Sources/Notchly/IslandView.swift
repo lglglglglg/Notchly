@@ -669,12 +669,12 @@ struct IslandView: View {
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            Text(pocket.statusMessage)
+            Text(isPocketDropTarget ? "松开即可暂存" : pocket.statusMessage)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isPocketDropTarget ? settings.islandAccentTheme.accent : .secondary)
 
             if pocket.items.isEmpty {
-                ContentUnavailableView("还没有文件", systemImage: "arrow.down.doc", description: Text("把文件拖到刘海区域即可暂存"))
+                ContentUnavailableView("还没有文件", systemImage: "arrow.down.doc", description: Text("把文件拖到此面板或底部暂存入口"))
                     .frame(height: 120)
             } else {
                 ScrollView {
@@ -712,6 +712,16 @@ struct IslandView: View {
         }
         .padding(14)
         .frame(width: 330)
+        .contentShape(Rectangle())
+        .onDrop(of: [UTType.fileURL], isTargeted: $isPocketDropTarget, perform: receivePocketDrop)
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
+                    isPocketDropTarget ? settings.islandAccentTheme.accent.opacity(0.9) : .clear,
+                    lineWidth: 2
+                )
+                .allowsHitTesting(false)
+        }
         .alert("清空临时文件托盘？", isPresented: $confirmsPocketClear) {
             Button("取消", role: .cancel) {}
             Button("清空", role: .destructive) { pocket.clear() }

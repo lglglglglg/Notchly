@@ -9,6 +9,7 @@ version="${NOTCHLY_VERSION:-0.14.4}"
 zip_archive="$project_root/dist/Notchly-${version}-alpha-universal.zip"
 dmg_archive="$project_root/dist/Notchly-${version}-alpha-universal.dmg"
 signing_identity="${NOTCHLY_SIGNING_IDENTITY:--}"
+entitlements_path="$project_root/Notchly/Notchly.entitlements"
 
 cd "$project_root"
 xcodegen generate
@@ -26,9 +27,12 @@ ditto "$source_app" "$stable_app"
 if [[ "$signing_identity" == "-" ]]; then
   codesign --force --deep --sign - \
     --identifier com.notchly.app \
+    --entitlements "$entitlements_path" \
     "$stable_app"
 else
-  codesign --force --deep --sign "$signing_identity" "$stable_app"
+  codesign --force --deep --sign "$signing_identity" \
+    --entitlements "$entitlements_path" \
+    "$stable_app"
 fi
 
 rm -f "$zip_archive" "$dmg_archive"
