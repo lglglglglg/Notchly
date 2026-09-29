@@ -1440,7 +1440,7 @@ struct SettingsView: View {
                     Text("让 Mac 的刘海更有用")
                         .font(.headline)
                         .foregroundStyle(.secondary)
-                    Text("Alpha 内测版")
+                    Text("正式发布版")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
@@ -1454,7 +1454,7 @@ struct SettingsView: View {
             SettingsCard(title: "版本", icon: "shippingbox") {
                 SettingLine(title: "当前版本", detail: "版本 \(appVersion) · 构建 \(buildNumber)") {
                     Button("检查更新") {
-                        aboutMessage = "当前为 Alpha 内测版，正式发布前将接入自动更新通道。"
+                        aboutMessage = "请前往 GitHub Releases 查看并下载最新版本。"
                     }
                 }
                 Divider()

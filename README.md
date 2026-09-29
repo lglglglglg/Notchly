@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/macOS-14.0%2B-blue?logo=apple" alt="macOS 14.0+">
   <img src="https://img.shields.io/badge/Swift-6.0-orange?logo=swift" alt="Swift 6.0">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-0.14.4--alpha-purple" alt="Version 0.14.4-alpha">
+  <img src="https://img.shields.io/badge/Version-0.14.5-blue" alt="Version 0.14.5">
 </p>
 
 ## 关于 Notchly
@@ -47,7 +47,7 @@ Notchly 是一款本地优先的 macOS 应用，把音乐信息、同步歌词�
 
 ## 下载与安装
 
-Notchly 需要 macOS 14.0 或更高版本，当前发布版本仍处于 Alpha 阶段。
+Notchly 需要 macOS 14.0 或更高版本。
 
 前往 [GitHub Releases](https://github.com/lglglglglg/Notchly/releases) 下载最新版本：
 
@@ -56,7 +56,7 @@ Notchly 需要 macOS 14.0 或更高版本，当前发布版本仍处于 Alpha �
 
 也可以从 [Notchly 官方网站](https://lglglglglg.github.io/Notchly/) 进入下载页面。
 
-当前 Alpha 发行包尚未完成 Developer ID 签名和 Apple 公证。若 macOS 首次启动时拦截应用，可在 Finder 中右键选择“打开”，或前往“系统设置 → 隐私与安全性”确认打开。仅从上述官方页面下载发行包。
+当前发行包尚未完成 Developer ID 签名和 Apple 公证。若 macOS 首次启动时拦截应用，可在 Finder 中右键选择“打开”，或前往“系统设置 → 隐私与安全性”确认打开。仅从上述官方页面下载发行包。
 
 ## 快速使用
 
@@ -91,7 +91,7 @@ Notchly 不读取键盘输入、屏幕内容或系统音频，也不需要屏幕
 - 国内播放器兼容层使用私有 `MediaRemote.framework`，当前版本不适合直接提交 Mac App Store。
 - AppleScript 与 MediaRemote 已在代码层隔离；关闭或替换兼容层不会影响 Apple Music、Spotify 和灵动岛核心界面。
 - 歌词和远程封面的可用性、准确性及内容授权由相应第三方服务决定。
-- 当前仍处于 Alpha 阶段，建议保留重要文件的原始副本，并通过 GitHub Issues 反馈问题。
+- 文件暂存用于临时周转，不替代长期存储；请保留重要文件的原始副本，并通过 GitHub Issues 反馈问题。
 
 ## 开发构建
 
