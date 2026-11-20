@@ -18,6 +18,14 @@
 
 请使用微信扫一扫。
 
+### 爱发电
+
+如果 Notchly 帮到了你，欢迎[在爱发电支持我的独立开发](https://ifdian.net/a/han19jiu)。你的支持会帮助我继续维护和更新 Notchly 等小工具。
+
+<a href="https://ifdian.net/a/han19jiu">
+  <img src="./assets/afdian-qr.png" width="160" alt="扫码打开韩十久的爱发电主页">
+</a>
+
 ## 🙏 致谢
 
 每一份支持都是 Notchly 持续改进的动力。无论金额多少，都感谢你的认可与陪伴。
